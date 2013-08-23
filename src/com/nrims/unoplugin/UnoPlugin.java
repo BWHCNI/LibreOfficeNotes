@@ -436,9 +436,12 @@ public class UnoPlugin implements PlugIn{
                             xChildAccessibleContext = getNextContext(xAccessibleContext, j);
                             if (xChildAccessibleContext.getAccessibleRole() == AccessibleRole.GRAPHIC && withinRange(xChildAccessibleContext)) {
                                 //if we are over the image, then we insert a new image scaled to the width of the one we're dropping on
+                                XUnitConversion xUnitConversion = getXUnitConversion(xComponent);
+                                
                                 XAccessibleComponent xAccessibleComponent = UnoRuntime.queryInterface(
                                         XAccessibleComponent.class, xChildAccessibleContext);
-                                image.size.Width = xAccessibleComponent.getSize().Width;
+                                Size size = xUnitConversion.convertSizeToLogic(xAccessibleComponent.getSize(), MeasureUnit.MM_100TH);
+                                image.size.Width = size.Width;
                                 j = numChildren;
                             }
                         }
@@ -506,7 +509,9 @@ public class UnoPlugin implements PlugIn{
                                 && withinRange(xChildAccessibleContext)) {
                             XAccessibleComponent xAccessibleComponent = UnoRuntime.queryInterface(
                                     XAccessibleComponent.class, xChildAccessibleContext);
-                            image.size.Width = xAccessibleComponent.getSize().Width;
+                            XUnitConversion xUnitConversion = getXUnitConversion(xComponent);
+                            Size size = xUnitConversion.convertSizeToLogic(xAccessibleComponent.getSize(), MeasureUnit.MM_100TH);
+                                image.size.Width = size.Width;
                             break;
                         }
                     }
@@ -543,14 +548,16 @@ public class UnoPlugin implements PlugIn{
 
             //query for the properties of the graphic
             XUnitConversion xUnitConversion = getXUnitConversion(xComponent);
+            Size size = new Size(image.image.getWidth(null), image.image.getHeight(null));
+            size = xUnitConversion.convertSizeToLogic(size, MeasureUnit.MM_100TH);
             if (image.size.Width > 0) {
                 //calculate the width and height
-                double ratio = (double) image.size.Width / (double) image.image.getWidth(null);
-                image.size.Height = (int) Math.round(ratio * image.image.getHeight(null));
-            } else {
-                image.size = new Size(image.image.getWidth(null), image.image.getHeight(null));
+                double ratio = (double) image.size.Width / (double) size.Width;
+                image.size.Height = (int) Math.round(ratio * size.Height);
+            }else{
+                image.size = size;
             }
-            image.size = xUnitConversion.convertSizeToLogic(image.size, MeasureUnit.MM_100TH);
+            
             XAccessibleComponent xAccessibleComponent = UnoRuntime.queryInterface(
                     XAccessibleComponent.class, xAccessibleContext);
             Size windowSize = xUnitConversion.convertSizeToLogic(xAccessibleComponent.getSize(), MeasureUnit.MM_100TH);
@@ -558,7 +565,7 @@ public class UnoPlugin implements PlugIn{
             if (fitToWindow) {
                 if (image.size.Width > windowSize.Width) {
                     int ratio = image.size.Width;
-                    image.size.Width = 165100 - 1000;
+                    image.size.Width = windowSize.Width - 1000;
                     ratio = image.size.Width / ratio;
                     image.size.Height = image.size.Height * ratio;
                 }
@@ -622,48 +629,48 @@ public class UnoPlugin implements PlugIn{
             com.sun.star.beans.XPropertySet xPropSet = (com.sun.star.beans.XPropertySet) UnoRuntime.queryInterface(
                     com.sun.star.beans.XPropertySet.class, graphic);
 
-            size = image.size;
-            if (size.Width > 0) {
-                //calculate the width and height
-                double ratio = (double) size.Width / (double) image.image.getWidth(null);
-                size.Height = (int) Math.round(ratio * image.image.getHeight(null));
-            } else {
-                size = new Size(image.image.getWidth(null), image.image.getHeight(null));
-            }
+            size = new Size(image.image.getWidth(null), image.image.getHeight(null));
             size = xUnitConversion.convertSizeToLogic(size, MeasureUnit.MM_100TH);
+            if (image.size.Width > 0) {
+                //calculate the width and height
+                double ratio = (double) image.size.Width / (double) size.Width;
+                image.size.Height = (int) Math.round(ratio * size.Height);
+            }else{
+                image.size = size;
+            }
             XAccessibleComponent xAccessibleComponent = UnoRuntime.queryInterface(
                     XAccessibleComponent.class, xAccessibleContext);
             Size windowSize = xUnitConversion.convertSizeToLogic(xAccessibleComponent.getSize(), MeasureUnit.MM_100TH);
             //if the image is greater than the width, then we scale it down to fit in the page
             if (fitToWindow) {
-                if (size.Width >= windowSize.Width) {
-                    double ratio = size.Width;
-                    size.Width = windowSize.Width;
-                    ratio = size.Width / ratio;
-                    size.Height = (int) Math.round(size.Height * ratio);
+                if (image.size.Width > windowSize.Width) {
+                    double ratio = image.size.Width;
+                    image.size.Width = windowSize.Width - 2500;
+                    ratio = image.size.Width / ratio;
+                    image.size.Height = (int) Math.round(image.size.Height * ratio);
                 }
                 //if greater than height, do the same thing to descale it
-                if (size.Height >= windowSize.Height) {
-                    double ratio = size.Height;
-                    size.Height = windowSize.Height - 2500;
-                    ratio = size.Height / ratio;
-                    size.Width = (int) Math.round(size.Width * ratio);
+                if (image.size.Height >= windowSize.Height) {
+                    double ratio = image.size.Height;
+                    image.size.Height = windowSize.Height - 2500;
+                    ratio = image.size.Height / ratio;
+                    image.size.Width = (int) Math.round(image.size.Width * ratio);
                 }
             }
-            image.size = size;
-            image.xShape.setSize(size);
+            image.xShape.setSize(image.size);
             point = new Point();
             point.X = 0;
             point.Y = 0;
             //tile the images, and make sure they do not go beyond the limit of the window
             
             if (autoTile) {
-                while (intersects(point, size, xDrawPage)) {
-                    if ((point.X + (size.Width * 2) + 200) < windowSize.Width) {
-                        point.X += (size.Width + 200);
+                int curX;
+                while ((curX = intersects(point, size, xDrawPage)) != 0) {
+                    if (curX + size.Width < windowSize.Width) {
+                        point.X = curX;
                     } else {
                         point.X = 0;
-                        point.Y += (size.Height + 1200);
+                        point.Y += (300);
                     }
                 }
             }
@@ -985,7 +992,7 @@ public class UnoPlugin implements PlugIn{
         }
     }
 
-    private boolean intersects(Point p, Size s, XDrawPage xDrawPage) {
+    private int intersects(Point p, Size s, XDrawPage xDrawPage) {
         Rectangle rectangle = new Rectangle(p.X, p.Y, s.Width, s.Height);
         XShapes xShapes = (XShapes) UnoRuntime.queryInterface(XShapes.class, xDrawPage);
         //get the accessible component
@@ -998,15 +1005,15 @@ public class UnoPlugin implements PlugIn{
                 Size size = xShape.getSize();
                 Rectangle targetRectangle = new Rectangle(point.X, point.Y, size.Width, size.Height);
                 if (rectangle.intersects(targetRectangle)) {
-                    return true;
+                    return point.X+size.Width + 200;
                 }
             } catch (Exception e) {
                 System.out.println("Exception caught");
-                return false;
+                return -1;
             }
 
         }
-        return false;
+        return 0;
     }
 
     private static XWindow getWindow(XMultiServiceFactory msf, XModel xModel, boolean containerWindow) {
