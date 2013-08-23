@@ -657,7 +657,7 @@ public class UnoPlugin implements PlugIn{
                     image.size.Width = (int) Math.round(image.size.Width * ratio);
                 }
             }
-            image.xShape.setSize(image.size);
+           
             point = new Point();
             point.X = 0;
             point.Y = 0;
@@ -665,8 +665,8 @@ public class UnoPlugin implements PlugIn{
             
             if (autoTile) {
                 int curX;
-                while ((curX = intersects(point, size, xDrawPage)) != 0) {
-                    if (curX + size.Width < windowSize.Width) {
+                while ((curX = intersects(point, image.size, xDrawPage)) != 0) {
+                    if (curX + image.size.Width + 200 < windowSize.Width) {
                         point.X = curX;
                     } else {
                         point.X = 0;
@@ -674,8 +674,17 @@ public class UnoPlugin implements PlugIn{
                     }
                 }
             }
-
             image.xShape.setPosition(point);
+            if (fitToWindow) {
+                //if greater than height, do the same thing to descale it
+                if (image.size.Height + point.Y >= windowSize.Height && image.size.Height - point.Y > 1000) {
+                    double ratio = image.size.Height;
+                    image.size.Height = windowSize.Height - point.Y - 2500;
+                    ratio = image.size.Height / ratio;
+                    image.size.Width = (int) Math.round(image.size.Width * ratio);
+                }
+            }
+             image.xShape.setSize(image.size);
             xPropSet.setPropertyValue("Graphic", convertImage(image.image));
             xPropSet.setPropertyValue("Title", image.title);
             xPropSet.setPropertyValue("Description", image.description);
