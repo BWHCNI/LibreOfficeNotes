@@ -60,6 +60,8 @@ import com.sun.star.frame.XFrame;
 import com.sun.star.frame.XModel;
 import com.sun.star.lang.XMultiServiceFactory;
 import com.sun.star.text.XTextEmbeddedObjectsSupplier;
+import com.sun.star.text.XTextViewCursor;
+import com.sun.star.text.XTextViewCursorSupplier;
 import com.sun.star.uno.UnoRuntime;
 import com.sun.star.uno.XInterface;
 import com.sun.star.util.MeasureUnit;
@@ -340,14 +342,24 @@ public class UnoPlugin implements PlugIn{
                         xMSF.createInstance("com.sun.star.text.TextEmbeddedObject"));
                 XPropertySet xps = (XPropertySet) UnoRuntime.queryInterface(XPropertySet.class, xt);
                 xps.setPropertyValue("CLSID", "4BAB8970-8A3B-45B3-991c-cbeeac6bd5e3");
-                xps.setPropertyValue("HoriOrientPosition", new Integer(0));
-                xps.setPropertyValue("VertOrientPosition", new Integer(0));
-                XTextCursor cursor = xTextDocument.getText().createTextCursor();
+                XModel xModel = (XModel)UnoRuntime.queryInterface(
+                XModel.class, currentDocument);
+                XController xController = xModel.getCurrentController();
+                XTextViewCursorSupplier xViewCursorSupplier = (XTextViewCursorSupplier)UnoRuntime.queryInterface(
+                XTextViewCursorSupplier.class, xController);
+
+                XTextViewCursor xViewCursor = xViewCursorSupplier.getViewCursor();
+                Point p = xViewCursor.getPosition();
+                xps.setPropertyValue("HoriOrientPosition", new Integer(p.X));
+                xps.setPropertyValue("VertOrientPosition", new Integer(p.Y));
+                
+                XTextCursor cursor = xViewCursor;
                 XTextRange xTextRange = (XTextRange) UnoRuntime.queryInterface(XTextRange.class, cursor);
                 xTextDocument.getText().insertTextContent(xTextRange, xt, false);
             }
         } catch (Exception ex) {
             System.out.println("Could not insert OLE object");
+            ex.printStackTrace(System.err);
         }
     }
 
