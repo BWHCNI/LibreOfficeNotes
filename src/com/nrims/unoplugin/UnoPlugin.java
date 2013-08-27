@@ -62,6 +62,7 @@ import com.sun.star.lang.XMultiServiceFactory;
 import com.sun.star.text.XTextEmbeddedObjectsSupplier;
 import com.sun.star.text.XTextViewCursor;
 import com.sun.star.text.XTextViewCursorSupplier;
+import com.sun.star.uno.Any;
 import com.sun.star.uno.UnoRuntime;
 import com.sun.star.uno.XInterface;
 import com.sun.star.util.MeasureUnit;
@@ -1080,7 +1081,13 @@ public class UnoPlugin implements PlugIn{
     private XDrawPage getXDrawPage(XComponent xComponent) {
         XDrawPage xDrawPage = null;
         try {
-            XDrawPagesSupplier xDrawPagesSupplier = (XDrawPagesSupplier) UnoRuntime.queryInterface(
+            XModel xModel = (XModel) UnoRuntime.queryInterface(XModel.class, xComponent);
+            XController dddV = xModel.getCurrentController();
+            com.sun.star.beans.XPropertySet xTFPS = (com.sun.star.beans.XPropertySet) UnoRuntime.queryInterface(
+                    com.sun.star.beans.XPropertySet.class, dddV);
+            Any any = (Any) xTFPS.getPropertyValue("CurrentPage");
+            xDrawPage = (XDrawPage) any.getObject();
+            /*XDrawPagesSupplier xDrawPagesSupplier = (XDrawPagesSupplier) UnoRuntime.queryInterface(
                     XDrawPagesSupplier.class, xComponent);
             if (xDrawPagesSupplier != null) {
                 Object drawPages = xDrawPagesSupplier.getDrawPages();
@@ -1089,7 +1096,8 @@ public class UnoPlugin implements PlugIn{
                 //get current draw page
                 Object drawPage = xIndexedDrawPages.getByIndex(0);
                 xDrawPage = (XDrawPage) UnoRuntime.queryInterface(XDrawPage.class, drawPage);
-            }
+            }*/
+            
         } catch (Exception e) {
             System.out.println("Error trying to retrieve draw page" + e);
             e.printStackTrace(System.err);
