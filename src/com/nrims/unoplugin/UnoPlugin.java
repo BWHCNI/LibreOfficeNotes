@@ -59,6 +59,7 @@ import com.sun.star.frame.XController;
 import com.sun.star.frame.XFrame;
 import com.sun.star.frame.XModel;
 import com.sun.star.lang.XMultiServiceFactory;
+import com.sun.star.lang.XServiceInfo;
 import com.sun.star.text.XTextEmbeddedObjectsSupplier;
 import com.sun.star.text.XTextViewCursor;
 import com.sun.star.text.XTextViewCursorSupplier;
@@ -293,6 +294,13 @@ public class UnoPlugin implements PlugIn{
             System.out.println("Failure to connect");
         }
         return null;
+    }
+     private boolean isImpress(XComponent xComponent){
+        XModel xModel = (XModel) UnoRuntime.queryInterface(XModel.class, xComponent);
+        XServiceInfo xServiceInfo = (XServiceInfo) UnoRuntime.queryInterface(XServiceInfo.class, xModel);
+        if (xServiceInfo.supportsService("com.sun.star.presentation.PresentationDocument"))
+            return true;
+        else return false;
     }
     /**
      * 
@@ -529,6 +537,15 @@ public class UnoPlugin implements PlugIn{
                         }
                     }
                 }
+                XUnitConversion xUnitConversion = getXUnitConversion(xComponent);
+                xAccessibleContext = getNextContext(xAccessibleContext, 0);
+                XAccessibleComponent xAccessibleComponent = UnoRuntime.queryInterface(
+                        XAccessibleComponent.class, xAccessibleContext);
+                Point point = xAccessibleComponent.getLocationOnScreen();
+                java.awt.Point location = MouseInfo.getPointerInfo().getLocation();
+                image.p = xUnitConversion.convertPointToLogic(
+                        new Point((int) Math.round(location.getX() - point.X), (int) Math.round(location.getY() - point.Y)),
+                        MeasureUnit.MM_100TH);
                 insertDrawContent(image, xComponent, xAccessibleRoot, null);
             }
         } catch (Exception e) {
@@ -675,8 +692,9 @@ public class UnoPlugin implements PlugIn{
             point.X = 0;
             point.Y = 0;
             //tile the images, and make sure they do not go beyond the limit of the window
-            
-            if (autoTile) {
+            if (isImpress(xComponent)){
+                point = image.p;
+            }else if (autoTile) {
                 int curX;
                 while ((curX = intersects(point, image.size, xDrawPage)) != 0) {
                     if (curX + image.size.Width + 200 < windowSize.Width) {
@@ -697,6 +715,8 @@ public class UnoPlugin implements PlugIn{
                     image.size.Width = (int) Math.round(image.size.Width * ratio);
                 }
             }
+            //point.X -= Math.round(image.size.Width/2);
+            //point.Y -= Math.round(image.size.Height/2);
              image.xShape.setSize(image.size);
             xPropSet.setPropertyValue("Graphic", convertImage(image.image));
             xPropSet.setPropertyValue("Title", image.title);
