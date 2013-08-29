@@ -732,8 +732,8 @@ public class UnoPlugin implements PlugIn{
                     XMultiServiceFactory.class, xComponent);
             Object drawShape = xDrawFactory.createInstance("com.sun.star.drawing.TextShape");
             XShape xDrawShape = (XShape) UnoRuntime.queryInterface(XShape.class, drawShape);
-            xDrawShape.setSize(new Size(size.Width, 1000));
-            xDrawShape.setPosition(new Point(point.X, point.Y + size.Height));
+            xDrawShape.setSize(new Size(image.size.Width, 1000));
+            xDrawShape.setPosition(new Point(point.X, point.Y + image.size.Height));
 
             //add OpenMims Image
             xDrawPage.add(image.xShape);
