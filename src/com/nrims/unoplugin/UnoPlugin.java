@@ -328,6 +328,42 @@ public class UnoPlugin implements PlugIn{
             return false;
         }
     }
+    public static boolean newDraw() {
+        try {
+            XComponentContext context = Bootstrap.bootstrap();
+            XMultiComponentFactory xMCF = context.getServiceManager();
+            Object oDesktop = xMCF.createInstanceWithContext(
+                    "com.sun.star.frame.Desktop", context);
+            XDesktop desktop = (com.sun.star.frame.XDesktop) UnoRuntime.queryInterface(
+                    com.sun.star.frame.XDesktop.class, oDesktop);
+            XComponentLoader xComponentLoader = (XComponentLoader) UnoRuntime.queryInterface(
+                    XComponentLoader.class, desktop);
+            PropertyValue[] loadProps = new PropertyValue[0];
+            XComponent currentDocument = xComponentLoader.loadComponentFromURL("private:factory/sdraw", "_blank", 0, loadProps);
+            return true;
+        } catch (Exception e) {
+            System.out.println("Failure to create new document");
+            return false;
+        }
+    }
+    public static boolean newImpress() {
+        try {
+            XComponentContext context = Bootstrap.bootstrap();
+            XMultiComponentFactory xMCF = context.getServiceManager();
+            Object oDesktop = xMCF.createInstanceWithContext(
+                    "com.sun.star.frame.Desktop", context);
+            XDesktop desktop = (com.sun.star.frame.XDesktop) UnoRuntime.queryInterface(
+                    com.sun.star.frame.XDesktop.class, oDesktop);
+            XComponentLoader xComponentLoader = (XComponentLoader) UnoRuntime.queryInterface(
+                    XComponentLoader.class, desktop);
+            PropertyValue[] loadProps = new PropertyValue[0];
+            XComponent currentDocument = xComponentLoader.loadComponentFromURL("private:factory/simpress", "_blank", 0, loadProps);
+            return true;
+        } catch (Exception e) {
+            System.out.println("Failure to create new document");
+            return false;
+        }
+    }
     /**
      * Insert a new OLE object into the writer document to place images into
      */
@@ -818,7 +854,7 @@ public class UnoPlugin implements PlugIn{
             int[] blank = new int[]{0, 0, 0, 0};
             com.sun.star.beans.XPropertySet xTFPS = (com.sun.star.beans.XPropertySet) UnoRuntime.queryInterface(
                     com.sun.star.beans.XPropertySet.class, xTextFrame);
-            
+            //remove the borders
             xTFPS.setPropertyValue("FrameIsAutomaticHeight", true);
             xTFPS.setPropertyValue("LeftBorder", blank);
             xTFPS.setPropertyValue("RightBorder", blank);
@@ -895,7 +931,12 @@ public class UnoPlugin implements PlugIn{
         return xTextFrame;
 
     }
-
+    /**
+     * Retrieve an OLE Object from a text document.
+     * @param name Name of the OLE Object
+     * @param xTextDocument the text document we're looking in
+     * @return the XComponent which represents the OLE
+     */
     private XComponent getOLE(String name, XTextDocument xTextDocument) {
         XComponent xComponent = null;
         try {
@@ -1002,7 +1043,12 @@ public class UnoPlugin implements PlugIn{
         }
         return graphic;
     }
-
+    /**
+     * Get current window from given xModel
+     * @param msf
+     * @param xModel
+     * @return XWindow object
+     */
     private static XWindow getCurrentWindow(XMultiServiceFactory msf,
             XModel xModel) {
         return getWindow(msf, xModel, false);
@@ -1024,20 +1070,21 @@ public class UnoPlugin implements PlugIn{
         Size size = xAccessibleComponent.getSize();
         java.awt.Point location = MouseInfo.getPointerInfo().getLocation();
         if (point.X + size.Width < location.getX() || location.getX() < point.X || point.Y + size.Height < location.getY() || point.Y > location.getY()) {
-            //System.out.println("Not within range of " + xAccessibleContext.getAccessibleRole());
             return false;
         } else {
-            //System.out.println("Within range of " + xAccessibleContext.getAccessibleRole());
-            //System.out.println(point.X);
-            // System.out.println(point.Y);
             return true;
         }
     }
-
+    /**
+     * Check to see if a rectangle intersects with any objects in the XDrawPage.
+     * @param p the upper-left corner of the rectangle
+     * @param s the dimensions of the rectangle
+     * @param xDrawPage the XDrawPage containing the objects we want to check against
+     * @return 
+     */
     private int intersects(Point p, Size s, XDrawPage xDrawPage) {
         Rectangle rectangle = new Rectangle(p.X, p.Y, s.Width, s.Height);
         XShapes xShapes = (XShapes) UnoRuntime.queryInterface(XShapes.class, xDrawPage);
-        //get the accessible component
         for (int i = 0; i < xShapes.getCount(); i++) {
             try {
                 XShape xShape = (XShape) UnoRuntime.queryInterface(XShape.class, xShapes.getByIndex(i));
@@ -1085,7 +1132,6 @@ public class UnoPlugin implements PlugIn{
         }
         return xWindow;
     }
-
     private static XAccessible getAccessibleObject(XInterface xObject) {
         XAccessible xAccessible = null;
         try {
@@ -1097,27 +1143,38 @@ public class UnoPlugin implements PlugIn{
         }
         return xAccessible;
     }
-
+    /**
+     * Get the current drawpage of the given xComponent.
+     * Can be used either on a draw document, impress document, or OLE object
+     * @param xComponent
+     * @return the XDrawPage that is currently displayed
+     */
     private XDrawPage getXDrawPage(XComponent xComponent) {
         XDrawPage xDrawPage = null;
         try {
             XModel xModel = (XModel) UnoRuntime.queryInterface(XModel.class, xComponent);
-            XController dddV = xModel.getCurrentController();
-            com.sun.star.beans.XPropertySet xTFPS = (com.sun.star.beans.XPropertySet) UnoRuntime.queryInterface(
-                    com.sun.star.beans.XPropertySet.class, dddV);
-            Any any = (Any) xTFPS.getPropertyValue("CurrentPage");
-            xDrawPage = (XDrawPage) any.getObject();
-            /*XDrawPagesSupplier xDrawPagesSupplier = (XDrawPagesSupplier) UnoRuntime.queryInterface(
-                    XDrawPagesSupplier.class, xComponent);
-            if (xDrawPagesSupplier != null) {
-                Object drawPages = xDrawPagesSupplier.getDrawPages();
-                XIndexAccess xIndexedDrawPages = (XIndexAccess) UnoRuntime.queryInterface(
-                        XIndexAccess.class, drawPages);
-                //get current draw page
-                Object drawPage = xIndexedDrawPages.getByIndex(0);
-                xDrawPage = (XDrawPage) UnoRuntime.queryInterface(XDrawPage.class, drawPage);
-            }*/
             
+                XController dddV = xModel.getCurrentController();
+            if (dddV != null) {
+                //this will work for draw and impress documents
+                com.sun.star.beans.XPropertySet xTFPS = (com.sun.star.beans.XPropertySet) UnoRuntime.queryInterface(
+                        com.sun.star.beans.XPropertySet.class, dddV);
+                Any any = (Any) xTFPS.getPropertyValue("CurrentPage");
+                xDrawPage = (XDrawPage) any.getObject();
+            } else {
+                //xModel.getCurrentController will fail if the XComponent belongs to an OLE object
+                //so we need to treat it as a single page draw document
+                XDrawPagesSupplier xDrawPagesSupplier = (XDrawPagesSupplier) UnoRuntime.queryInterface(
+                        XDrawPagesSupplier.class, xComponent);
+                if (xDrawPagesSupplier != null) {
+                    Object drawPages = xDrawPagesSupplier.getDrawPages();
+                    XIndexAccess xIndexedDrawPages = (XIndexAccess) UnoRuntime.queryInterface(
+                            XIndexAccess.class, drawPages);
+                    //get current draw page
+                    Object drawPage = xIndexedDrawPages.getByIndex(0);
+                    xDrawPage = (XDrawPage) UnoRuntime.queryInterface(XDrawPage.class, drawPage);
+                }
+            }
         } catch (Exception e) {
             System.out.println("Error trying to retrieve draw page" + e);
             e.printStackTrace(System.err);
@@ -1130,7 +1187,12 @@ public class UnoPlugin implements PlugIn{
         XWindow xWindow = getCurrentWindow(msf, aModel);
         return getAccessibleObject(xWindow);
     }
-
+    /**
+     * Get the next AccessibleContext from the parent given and index given
+     * @param xAccessibleContext the context whose child you want to retrieve
+     * @param i the index of the child you want to retrieve
+     * @return XAccessibleContext child of the parent
+     */
     private XAccessibleContext getNextContext(XAccessibleContext xAccessibleContext, int i) {
         try {
             XAccessible xAccessible = xAccessibleContext.getAccessibleChild(i);
@@ -1163,7 +1225,14 @@ public class UnoPlugin implements PlugIn{
             return null;
         }
     }
-
+    /**
+     * Return the XUnitConversion object for the passed XComponent.
+     * The XUnitConversion class is used to convert from the units of the document
+     * to the pixels of the screen (Ex 10mm -> ??? pixels)
+     * This will work regardless of screen dpi or the current zoom level of the doc
+     * @param xComponent the component in whose context we wish to convert
+     * @return the XUnitConversion class
+     */
     private XUnitConversion getXUnitConversion(XComponent xComponent) {
         XUnitConversion xUnitConversion = null;
         try {
@@ -1181,7 +1250,9 @@ public class UnoPlugin implements PlugIn{
             return xUnitConversion;
         }
     }
-
+    /**
+     * Helper class to help pass parameters through the various methods of the plugin
+     */
     public class ImageInfo {
 
         public Point p;
