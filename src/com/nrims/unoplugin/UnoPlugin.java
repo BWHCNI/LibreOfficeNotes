@@ -636,12 +636,12 @@ public class UnoPlugin implements PlugIn{
                     image.size.Height = image.size.Height * ratio;
                 }
                 //if greater than height, do the same thing to descale it
-                if (image.size.Height >= windowSize.Height) {
+                /*if (image.size.Height >= windowSize.Height) {
                     double ratio = image.size.Height;
                     image.size.Height = windowSize.Height - 2500;
                     ratio = image.size.Height / ratio;
                     image.size.Width = (int) Math.round(image.size.Width * ratio);
-                }
+                }*/
             }
             //set the TextContent properties
             com.sun.star.beans.XPropertySet xPropSet = (com.sun.star.beans.XPropertySet) UnoRuntime.queryInterface(
@@ -872,7 +872,7 @@ public class UnoPlugin implements PlugIn{
                 int x = image.p.X - (image.size.Width / 2);
                 int y = image.p.Y - (image.size.Height / 2);
                 xTFPS.setPropertyValue("AnchorType",
-                    com.sun.star.text.TextContentAnchorType.AT_PAGE);
+                    com.sun.star.text.TextContentAnchorType.AT_PARAGRAPH);
                 xTFPS.setPropertyValue("VertOrient", com.sun.star.text.VertOrientation.NONE);
                 xTFPS.setPropertyValue("HoriOrient", com.sun.star.text.HoriOrientation.NONE);
                 xTFPS.setPropertyValue("HoriOrientRelation", com.sun.star.text.RelOrientation.PAGE_FRAME);
