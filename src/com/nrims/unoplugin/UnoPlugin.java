@@ -10,6 +10,7 @@ package com.nrims.unoplugin;
  */
 
 import ij.*;
+import ooo.connector.BootstrapSocketConnector;
 import ij.plugin.*;
 import java.awt.image.BufferedImage;
 import java.awt.Image;
@@ -281,7 +282,15 @@ public class UnoPlugin implements PlugIn{
      */
     private XComponent getCurrentDocument() {
         try {
-            context = Bootstrap.bootstrap();
+            String OS = System.getProperty("os.name").toLowerCase();
+            //We need to check whether or not the OS is a Mac here because on Macs, the juh.jar (the Java UNO Helper)
+            //is not located in the same place as the program, so we need to specify where the program is
+            if (OS.indexOf("mac") >= 0) {
+                String oooExeFolder = "/Applications/LibreOffice.app/Contents/MacOS";
+                context = BootstrapSocketConnector.bootstrap(oooExeFolder);
+            } else {
+                context = Bootstrap.bootstrap();
+            }
             xMCF = context.getServiceManager();
             Object oDesktop = xMCF.createInstanceWithContext(
                     "com.sun.star.frame.Desktop", context);
@@ -292,6 +301,7 @@ public class UnoPlugin implements PlugIn{
             return currentDocument;
         } catch (Exception e) {
             System.out.println("Failure to connect");
+            e.printStackTrace(System.err);
         }
         return null;
     }
