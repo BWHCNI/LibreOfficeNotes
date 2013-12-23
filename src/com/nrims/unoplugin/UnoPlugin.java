@@ -322,10 +322,19 @@ public class UnoPlugin implements PlugIn{
      */
     public static boolean newDoc() {
         try {
-            XComponentContext context = Bootstrap.bootstrap();
-            XMultiComponentFactory xMCF = context.getServiceManager();
+            XComponentContext localContext;
+            String OS = System.getProperty("os.name").toLowerCase();
+            //We need to check whether or not the OS is a Mac here because on Macs, the juh.jar (the Java UNO Helper)
+            //is not located in the same place as the program, so we need to specify where the program is
+            if (OS.indexOf("mac") >= 0) {
+                String oooExeFolder = "/Applications/LibreOffice.app/Contents/MacOS";
+                localContext = BootstrapSocketConnector.bootstrap(oooExeFolder);
+            } else {
+                localContext = Bootstrap.bootstrap();
+            }
+            XMultiComponentFactory xMCF = localContext.getServiceManager();
             Object oDesktop = xMCF.createInstanceWithContext(
-                    "com.sun.star.frame.Desktop", context);
+                    "com.sun.star.frame.Desktop", localContext);
             XDesktop desktop = (com.sun.star.frame.XDesktop) UnoRuntime.queryInterface(
                     com.sun.star.frame.XDesktop.class, oDesktop);
             XComponentLoader xComponentLoader = (XComponentLoader) UnoRuntime.queryInterface(
@@ -340,10 +349,19 @@ public class UnoPlugin implements PlugIn{
     }
     public static boolean newDraw() {
         try {
-            XComponentContext context = Bootstrap.bootstrap();
-            XMultiComponentFactory xMCF = context.getServiceManager();
+            XComponentContext localContext;
+            String OS = System.getProperty("os.name").toLowerCase();
+            //We need to check whether or not the OS is a Mac here because on Macs, the juh.jar (the Java UNO Helper)
+            //is not located in the same place as the program, so we need to specify where the program is
+            if (OS.indexOf("mac") >= 0) {
+                String oooExeFolder = "/Applications/LibreOffice.app/Contents/MacOS";
+                localContext = BootstrapSocketConnector.bootstrap(oooExeFolder);
+            } else {
+                localContext = Bootstrap.bootstrap();
+            }
+            XMultiComponentFactory xMCF = localContext.getServiceManager();
             Object oDesktop = xMCF.createInstanceWithContext(
-                    "com.sun.star.frame.Desktop", context);
+                    "com.sun.star.frame.Desktop", localContext);
             XDesktop desktop = (com.sun.star.frame.XDesktop) UnoRuntime.queryInterface(
                     com.sun.star.frame.XDesktop.class, oDesktop);
             XComponentLoader xComponentLoader = (XComponentLoader) UnoRuntime.queryInterface(
@@ -358,10 +376,19 @@ public class UnoPlugin implements PlugIn{
     }
     public static boolean newImpress() {
         try {
-            XComponentContext context = Bootstrap.bootstrap();
-            XMultiComponentFactory xMCF = context.getServiceManager();
+            XComponentContext localContext;
+            String OS = System.getProperty("os.name").toLowerCase();
+            //We need to check whether or not the OS is a Mac here because on Macs, the juh.jar (the Java UNO Helper)
+            //is not located in the same place as the program, so we need to specify where the program is
+            if (OS.indexOf("mac") >= 0) {
+                String oooExeFolder = "/Applications/LibreOffice.app/Contents/MacOS";
+                localContext = BootstrapSocketConnector.bootstrap(oooExeFolder);
+            } else {
+                localContext = Bootstrap.bootstrap();
+            }
+            XMultiComponentFactory xMCF = localContext.getServiceManager();
             Object oDesktop = xMCF.createInstanceWithContext(
-                    "com.sun.star.frame.Desktop", context);
+                    "com.sun.star.frame.Desktop", localContext);
             XDesktop desktop = (com.sun.star.frame.XDesktop) UnoRuntime.queryInterface(
                     com.sun.star.frame.XDesktop.class, oDesktop);
             XComponentLoader xComponentLoader = (XComponentLoader) UnoRuntime.queryInterface(
@@ -380,10 +407,19 @@ public class UnoPlugin implements PlugIn{
     public static void insertEmptyOLEObject() {
         try {
              
-            XComponentContext context = Bootstrap.bootstrap();
-            XMultiComponentFactory xMCF = context.getServiceManager();
+            XComponentContext localContext;
+            String OS = System.getProperty("os.name").toLowerCase();
+            //We need to check whether or not the OS is a Mac here because on Macs, the juh.jar (the Java UNO Helper)
+            //is not located in the same place as the program, so we need to specify where the program is
+            if (OS.indexOf("mac") >= 0) {
+                String oooExeFolder = "/Applications/LibreOffice.app/Contents/MacOS";
+                localContext = BootstrapSocketConnector.bootstrap(oooExeFolder);
+            } else {
+                localContext = Bootstrap.bootstrap();
+            }
+            XMultiComponentFactory xMCF = localContext.getServiceManager();
             Object oDesktop = xMCF.createInstanceWithContext(
-                    "com.sun.star.frame.Desktop", context);
+                    "com.sun.star.frame.Desktop", localContext);
             XDesktop desktop = (com.sun.star.frame.XDesktop) UnoRuntime.queryInterface(
                     com.sun.star.frame.XDesktop.class, oDesktop);
             XComponent currentDocument = desktop.getCurrentComponent();
