@@ -7,9 +7,23 @@
 <!-- the Compile on Save feature is turned off for the project. -->
 <!-- You can turn off the Compile on Save (or Deploy on Save) setting -->
 <!-- in the project's Project Properties dialog box.-->
-<project name="UnoPlugin" default="default" basedir=".">
-    <description>Builds, tests, and runs the project UnoPlugin.</description>
+<project name="LibreOfficeNotes" default="default" basedir=".">
+    <description>Builds, tests, and runs the project LibreOfficeNotes.</description>
     <import file="nbproject/build-impl.xml"/>
+    
+    <!-- Added to create svn revision number in file    -->
+    <target name="-pre-jar">
+      <exec executable="svnversion" output="buildnum.txt" >
+      </exec>
+      <copy file="buildnum.txt" todir="${build.classes.dir}"/>
+<!-- Added to create list of /lib jars in file    -->
+      <exec executable="ls" output="liblist.txt" >
+        <arg line="-1R lib"/>
+      </exec>
+      <copy file="liblist.txt" todir="${build.classes.dir}"/>
+    </target>
+<!--  end addition  -->
+    
     <!--
 
     There exist several targets which are by default empty and which can be 
@@ -59,7 +73,7 @@
 
     An example of overriding the target for project execution could look like this:
 
-        <target name="run" depends="UnoPlugin-impl.jar">
+        <target name="run" depends="LibreOfficeNotes-impl.jar">
             <exec dir="bin" executable="launcher.exe">
                 <arg file="${dist.jar}"/>
             </exec>
