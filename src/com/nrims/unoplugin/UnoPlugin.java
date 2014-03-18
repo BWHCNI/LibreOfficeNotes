@@ -56,6 +56,8 @@ import com.sun.star.drawing.XDrawPagesSupplier;
 import com.sun.star.drawing.XShapeGroup;
 import com.sun.star.drawing.XShapeGrouper;
 import com.sun.star.drawing.XShapes;
+import com.sun.star.embed.EmbedStates;
+import com.sun.star.embed.XEmbeddedObject;
 import com.sun.star.frame.XController;
 import com.sun.star.frame.XFrame;
 import com.sun.star.frame.XModel;
@@ -433,8 +435,11 @@ public class UnoPlugin implements PlugIn{
                         xMSF.createInstance("com.sun.star.text.TextEmbeddedObject"));
                 XPropertySet xps = (XPropertySet) UnoRuntime.queryInterface(XPropertySet.class, xt);
                 xps.setPropertyValue("CLSID", "4BAB8970-8A3B-45B3-991c-cbeeac6bd5e3");
+               
+
                 XModel xModel = (XModel)UnoRuntime.queryInterface(
                 XModel.class, currentDocument);
+                
                 XController xController = xModel.getCurrentController();
                 XTextViewCursorSupplier xViewCursorSupplier = (XTextViewCursorSupplier)UnoRuntime.queryInterface(
                 XTextViewCursorSupplier.class, xController);
@@ -447,6 +452,16 @@ public class UnoPlugin implements PlugIn{
                 XTextCursor cursor = xViewCursor;
                 XTextRange xTextRange = (XTextRange) UnoRuntime.queryInterface(XTextRange.class, cursor);
                 xTextDocument.getText().insertTextContent(xTextRange, xt, false);
+                                /*com.sun.star.document.XEmbeddedObjectSupplier xEOS = (com.sun.star.document.XEmbeddedObjectSupplier) UnoRuntime.queryInterface(com.sun.star.document.XEmbeddedObjectSupplier.class, xt);
+                com.sun.star.lang.XComponent xComponent = xEOS.getEmbeddedObject();
+  com.sun.star.document.XEmbeddedObjectSupplier2 embeddedObject = (com.sun.star.document.XEmbeddedObjectSupplier2) UnoRuntime.queryInterface(com.sun.star.document.XEmbeddedObjectSupplier2.class, xt); 
+    XEmbeddedObject extendedControlOverEmbeddedObject = embeddedObject.getExtendedControlOverEmbeddedObject(); 
+    //xController.select(embeddedObject.getEmbeddedObject()); 
+    extendedControlOverEmbeddedObject.changeState(EmbedStates.LOADED); 
+    extendedControlOverEmbeddedObject.changeState(EmbedStates.RUNNING); 
+    extendedControlOverEmbeddedObject.changeState(EmbedStates.INPLACE_ACTIVE); 
+    XWindow xWindow = (XWindow) UnoRuntime.queryInterface(XWindow.class, xComponent);
+                if (xWindow == null) System.out.println("null window");*/
             }
         } catch (Exception ex) {
             System.out.println("Could not insert OLE object");
@@ -497,6 +512,101 @@ public class UnoPlugin implements PlugIn{
 
         } catch (Exception e) {
             System.out.println("Error reading frames");
+            e.printStackTrace(System.err);
+            return false;
+        }
+        return true;
+    }
+     /**
+     * Method to handle dropping images in LibreOffice. If the user drops
+     * outside a text frame, nothing happens. If the user drops inside a text
+     * frame, and over no images, a new image is inserted into the text frame If
+     * the user drops inside a text frame and over an image, the existing image
+     * is replaced with the new one, albeit with same size and position
+     * @param i java.awt.image to be inserted
+     * @param text caption for the image
+     * @param title title for the image, under "Description..."
+     * @param description description for the image, under "Description..."
+     * @return true if succeeded, false if not
+     */
+    public boolean insertGraph(Image i, String text, String title, String description) {
+        if (title.equals("")) {
+            title = "None";
+        }
+        if (description.equals("")) {
+            description = "None";
+        }
+        ImageInfo image = new ImageInfo(i, text, title, description);
+        XComponent currentDocument = getCurrentDocument();
+        if (currentDocument == null) {
+            return false;
+        }
+        try {
+            // Querying for the text interface
+            XTextDocument xTextDocument = (XTextDocument) UnoRuntime.queryInterface(
+                    XTextDocument.class, currentDocument);
+            //current document is not a writer
+            if (xTextDocument == null) {
+                //check if an draw doc
+                XDrawPage xDrawPage = getXDrawPage(currentDocument);
+                if (xDrawPage != null) {
+                    System.out.println("Current document is a draw");
+                    insertIntoDraw(currentDocument, image);
+                }
+            } else {
+                System.out.println("Current document is a writer");
+                insertClosestWriter(image, currentDocument);
+            }
+
+        } catch (Exception e) {
+            System.out.println("Error reading frames");
+            e.printStackTrace(System.err);
+            return false;
+        }
+        return true;
+    }
+    private boolean insertClosestWriter(ImageInfo image, XComponent xComponent) {
+                try {
+            XTextDocument xTextDocument = (XTextDocument) UnoRuntime.queryInterface(
+                    XTextDocument.class, xComponent);
+            // Querying for the text service factory
+            XMultiServiceFactory xMSF = (XMultiServiceFactory) UnoRuntime.queryInterface(
+                    XMultiServiceFactory.class, xTextDocument);
+            XAccessible mXRoot = makeRoot(xMSF, xTextDocument);
+            XAccessibleContext xAccessibleRoot = mXRoot.getAccessibleContext();
+
+            //scope: xTextDocument -> ScrollPane -> Document
+            //get the scroll pane object
+            XAccessibleContext xAccessibleContext = getNextContext(xAccessibleRoot, 0);
+
+            //get the document object
+            xAccessibleContext = getNextContext(xAccessibleContext, 0);
+
+            int numChildren = xAccessibleContext.getAccessibleChildCount();
+            //loop through all the children of the document and find the text frames
+            for (int i = 0; i < numChildren; i++) {
+                XAccessibleContext xChildAccessibleContext = getNextContext(xAccessibleContext, i);
+                if (xChildAccessibleContext.getAccessibleRole() == AccessibleRole.EMBEDDED_OBJECT && withinPage(xChildAccessibleContext)) {
+                    //user is over an OLE embedded object
+                    XComponent xcomponent = getOLE(xChildAccessibleContext.getAccessibleName(), xTextDocument);
+                    return insertDrawGraph(image, xcomponent, xChildAccessibleContext, xComponent);
+                }
+            }
+            //if we hit here, this means we did not hit a text frame or OLE object
+            if (withinRange(xAccessibleContext)) {
+                XUnitConversion xUnitConversion = getXUnitConversion(xComponent);
+                xAccessibleContext = getNextContext(xAccessibleContext, 0);
+                XAccessibleComponent xAccessibleComponent = UnoRuntime.queryInterface(
+                        XAccessibleComponent.class, xAccessibleContext);
+                Point point = xAccessibleComponent.getLocationOnScreen();
+                java.awt.Point location = MouseInfo.getPointerInfo().getLocation();
+                image.p = xUnitConversion.convertPointToLogic(
+                        new Point((int) Math.round(location.getX() - point.X), (int) Math.round(location.getY() - point.Y)),
+                        MeasureUnit.MM_100TH);
+                insertTextContent(image, null, xComponent, xAccessibleContext);
+            }
+        } catch (Exception e) {
+            System.out.println("Error with accessibility api");
             e.printStackTrace(System.err);
             return false;
         }
@@ -707,6 +817,130 @@ public class UnoPlugin implements PlugIn{
         //insert the content
         return insertImageIntoTextFrame(image, xTextFrame, xTextDocument);
 
+    }
+      /**
+     * Inserts content and info into a draw page.
+     * @param image image and info to insert
+     * @param xComponent component of draw page
+     * @param xAccessibleContext accessiblecontext of draw page
+     * @param parentComponent parent component of draw page, if one exists
+     * @return true if succeeded, false if not
+     */
+    private boolean insertDrawGraph(ImageInfo image, XComponent xComponent, XAccessibleContext xAccessibleContext, XComponent parentComponent) {
+        Size size;
+        Point point;
+        XDrawPage xDrawPage = getXDrawPage(xComponent);
+        XUnitConversion xUnitConversion;
+        if (xDrawPage == null) {
+            return false;
+        }
+        try {
+            if (parentComponent == null) {
+                xUnitConversion = getXUnitConversion(xComponent);
+            } else {
+                xUnitConversion = getXUnitConversion(parentComponent);
+            }
+            //create blank graphic in document
+            Object graphic = createBlankGraphic(xComponent);
+
+            //query for the interface XTextContent on the GraphicObject 
+            image.xShape = (XShape) UnoRuntime.queryInterface(
+                    XShape.class, graphic);
+
+            //query for the properties of the graphic
+            com.sun.star.beans.XPropertySet xPropSet = (com.sun.star.beans.XPropertySet) UnoRuntime.queryInterface(
+                    com.sun.star.beans.XPropertySet.class, graphic);
+
+            size = new Size(image.image.getWidth(null), image.image.getHeight(null));
+            size = xUnitConversion.convertSizeToLogic(size, MeasureUnit.MM_100TH);
+            if (image.size.Width > 0) {
+                //calculate the width and height
+                double ratio = (double) image.size.Width / (double) size.Width;
+                image.size.Height = (int) Math.round(ratio * size.Height);
+            }else{
+                image.size = size;
+            }
+            XAccessibleComponent xAccessibleComponent = UnoRuntime.queryInterface(
+                    XAccessibleComponent.class, xAccessibleContext);
+            Size windowSize = xUnitConversion.convertSizeToLogic(xAccessibleComponent.getSize(), MeasureUnit.MM_100TH);
+            //if the image is greater than the width, then we scale it down to fit in the page
+            if (fitToWindow) {
+                if (image.size.Width > windowSize.Width) {
+                    double ratio = image.size.Width;
+                    image.size.Width = windowSize.Width - 2500;
+                    ratio = image.size.Width / ratio;
+                    image.size.Height = (int) Math.round(image.size.Height * ratio);
+                }
+                //if greater than height, do the same thing to descale it
+                if (image.size.Height >= windowSize.Height) {
+                    double ratio = image.size.Height;
+                    image.size.Height = windowSize.Height - 2500;
+                    ratio = image.size.Height / ratio;
+                    image.size.Width = (int) Math.round(image.size.Width * ratio);
+                }
+            }
+           
+            point = new Point();
+            point.X = 0;
+            point.Y = 0;
+            //tile the images, and make sure they do not go beyond the limit of the window
+            if (autoTile) {
+                int curX;
+                while ((curX = intersects(point, image.size, xDrawPage)) != 0) {
+                    if (curX + image.size.Width + 200 < windowSize.Width) {
+                        point.X = curX;
+                    } else {
+                        point.X = 0;
+                        point.Y += (300);
+                    }
+                }
+            }
+            image.xShape.setPosition(point);
+            if (fitToWindow) {
+                //if greater than height, do the same thing to descale it
+                if (image.size.Height + point.Y >= windowSize.Height && image.size.Height - point.Y > 1000) {
+                    double ratio = image.size.Height;
+                    image.size.Height = windowSize.Height - point.Y - 2500;
+                    ratio = image.size.Height / ratio;
+                    image.size.Width = (int) Math.round(image.size.Width * ratio);
+                }
+            }
+            //point.X -= Math.round(image.size.Width/2);
+            //point.Y -= Math.round(image.size.Height/2);
+             image.xShape.setSize(image.size);
+            xPropSet.setPropertyValue("Graphic", convertImage(image.image));
+            //xPropSet.setPropertyValue("Title", image.title);
+            //xPropSet.setPropertyValue("Description", image.description);
+        } catch (Exception exception) {
+            System.out.println("Couldn't set image properties");
+            exception.printStackTrace(System.err);
+            return false;
+        }
+        try {
+            XMultiServiceFactory xDrawFactory =
+                    (XMultiServiceFactory) UnoRuntime.queryInterface(
+                    XMultiServiceFactory.class, xComponent);
+            Object drawShape = xDrawFactory.createInstance("com.sun.star.drawing.TextShape");
+            XShape xDrawShape = (XShape) UnoRuntime.queryInterface(XShape.class, drawShape);
+            xDrawShape.setSize(new Size(image.size.Width, 1000));
+            xDrawShape.setPosition(new Point(point.X, point.Y + image.size.Height));
+
+            //add OpenMims Image
+            xDrawPage.add(image.xShape);
+
+            //get properties of text shape and modify them
+            XPropertySet xShapeProps = (XPropertySet) UnoRuntime.queryInterface(
+                    XPropertySet.class, drawShape);
+            xShapeProps.setPropertyValue("TextAutoGrowHeight", true);
+            xShapeProps.setPropertyValue("TextContourFrame", true);
+            xShapeProps.setPropertyValue("FillStyle", FillStyle.NONE);
+            xShapeProps.setPropertyValue("LineTransparence", 100);   
+        } catch (Exception e) {
+            System.out.println("Couldn't insert image");
+            e.printStackTrace(System.err);
+            return false;
+        }
+        return true;
     }
     /**
      * Inserts content and info into a draw page.
@@ -1095,9 +1329,9 @@ public class UnoPlugin implements PlugIn{
      * @param xModel
      * @return XWindow object
      */
-    private static XWindow getCurrentWindow(XMultiServiceFactory msf,
+    private static XWindow getCurrentWindow(
             XModel xModel) {
-        return getWindow(msf, xModel, false);
+        return getWindow(xModel, false);
     }
 
     /**
@@ -1119,6 +1353,26 @@ public class UnoPlugin implements PlugIn{
             return false;
         } else {
             return true;
+        }
+    }
+    
+    /**
+     * Check if element is within page range
+     *
+     * @param xAccessibleContext the context of particular component
+     * @return true if within, false if not
+     */
+    private boolean withinPage(XAccessibleContext xAccessibleContext) {
+        //get the accessible component
+        XAccessibleComponent xAccessibleComponent = UnoRuntime.queryInterface(
+                XAccessibleComponent.class, xAccessibleContext);
+        //get the bounds and check whether the element is on the screen
+        Point point = xAccessibleComponent.getLocationOnScreen();
+        Size size = xAccessibleComponent.getSize();
+        if (point.X > 0 && point.Y > 0) {
+            return true;
+        } else {
+            return false;
         }
     }
     /**
@@ -1151,7 +1405,7 @@ public class UnoPlugin implements PlugIn{
         return 0;
     }
 
-    private static XWindow getWindow(XMultiServiceFactory msf, XModel xModel, boolean containerWindow) {
+    private static XWindow getWindow(XModel xModel, boolean containerWindow) {
         XWindow xWindow = null;
         try {
             if (xModel == null) {
@@ -1230,7 +1484,7 @@ public class UnoPlugin implements PlugIn{
     }
 
     private static XAccessible makeRoot(XMultiServiceFactory msf, XModel aModel) {
-        XWindow xWindow = getCurrentWindow(msf, aModel);
+        XWindow xWindow = getCurrentWindow(aModel);
         return getAccessibleObject(xWindow);
     }
     /**
@@ -1283,10 +1537,7 @@ public class UnoPlugin implements PlugIn{
         XUnitConversion xUnitConversion = null;
         try {
             XModel xModel = (XModel) UnoRuntime.queryInterface(XModel.class, xComponent);
-            XMultiServiceFactory xMultiServiceFactory =
-                    (XMultiServiceFactory) UnoRuntime.queryInterface(
-                    XMultiServiceFactory.class, xComponent);
-            XWindow xWindow = getCurrentWindow(xMultiServiceFactory, xModel);
+            XWindow xWindow = getCurrentWindow(xModel);
             XWindowPeer xWindowPeer = UnoRuntime.queryInterface(XWindowPeer.class, xWindow);
             xUnitConversion = UnoRuntime.queryInterface(XUnitConversion.class, xWindowPeer);
         } catch (Exception e) {
