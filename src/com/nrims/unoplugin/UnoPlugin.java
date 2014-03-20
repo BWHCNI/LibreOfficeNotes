@@ -518,11 +518,9 @@ public class UnoPlugin implements PlugIn{
         return true;
     }
      /**
-     * Method to handle dropping images in LibreOffice. If the user drops
-     * outside a text frame, nothing happens. If the user drops inside a text
-     * frame, and over no images, a new image is inserted into the text frame If
-     * the user drops inside a text frame and over an image, the existing image
-     * is replaced with the new one, albeit with same size and position
+     * Method to handle dropping graphs. 
+     * This method is called when users in OpenMIMS right click a plot and select
+     * "Insert in LibreOffice". This will then insert the given plot into the either the closest word or draw document.
      * @param i java.awt.image to be inserted
      * @param text caption for the image
      * @param title title for the image, under "Description..."
@@ -551,7 +549,7 @@ public class UnoPlugin implements PlugIn{
                 XDrawPage xDrawPage = getXDrawPage(currentDocument);
                 if (xDrawPage != null) {
                     System.out.println("Current document is a draw");
-                    insertIntoDraw(currentDocument, image);
+                    insertClosestDraw(currentDocument, image);
                 }
             } else {
                 System.out.println("Current document is a writer");
@@ -685,6 +683,41 @@ public class UnoPlugin implements PlugIn{
             return false;
         }
         return true;
+    }
+        /**
+     * Find where to insert into the draw document.
+     * Also find if we need to copy an image's dimensions.
+     * @param xComponent component of draw window
+     * @param image image to insert 
+     * @return true if succeeded, false if not
+     */
+    private boolean insertClosestDraw(XComponent xComponent, ImageInfo image) {
+        try {
+            XModel xModel = (XModel) UnoRuntime.queryInterface(XModel.class, xComponent);
+            XMultiServiceFactory xMSF = (XMultiServiceFactory) UnoRuntime.queryInterface(
+                    XMultiServiceFactory.class, xModel);
+            XAccessible mXRoot = makeRoot(xMSF, xModel);
+            XAccessibleContext xAccessibleRoot = mXRoot.getAccessibleContext();
+            //go into AccessibleRole 40 (panel)
+            XAccessibleContext xAccessibleContext = getNextContext(xAccessibleRoot, 0);
+
+            //go into AccessibleRole 51 (scroll pane)
+            xAccessibleContext = getNextContext(xAccessibleContext, 0);
+
+            //go into AccessibleRole 13 (document)
+            xAccessibleContext = getNextContext(xAccessibleContext, 0);
+
+            //check to see whether if in range of document
+            if (withinPage(xAccessibleContext)) {
+                insertDrawGraph(image, xComponent, xAccessibleRoot, null);
+            }
+        } catch (Exception e) {
+            System.out.println("Error with accessibility api");
+            e.printStackTrace(System.err);
+            return false;
+        }
+        return true;
+
     }
     /**
      * Find where to insert into the draw document.
