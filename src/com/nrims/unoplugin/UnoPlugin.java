@@ -451,17 +451,16 @@ public class UnoPlugin implements PlugIn{
                 
                 XTextCursor cursor = xViewCursor;
                 XTextRange xTextRange = (XTextRange) UnoRuntime.queryInterface(XTextRange.class, cursor);
+                //xTextDocument.getText().insertString(xTextRange, "hello\n", false);
+                //xTextRange = (XTextRange) UnoRuntime.queryInterface(XTextRange.class, cursor);
                 xTextDocument.getText().insertTextContent(xTextRange, xt, false);
-                                /*com.sun.star.document.XEmbeddedObjectSupplier xEOS = (com.sun.star.document.XEmbeddedObjectSupplier) UnoRuntime.queryInterface(com.sun.star.document.XEmbeddedObjectSupplier.class, xt);
-                com.sun.star.lang.XComponent xComponent = xEOS.getEmbeddedObject();
-  com.sun.star.document.XEmbeddedObjectSupplier2 embeddedObject = (com.sun.star.document.XEmbeddedObjectSupplier2) UnoRuntime.queryInterface(com.sun.star.document.XEmbeddedObjectSupplier2.class, xt); 
-    XEmbeddedObject extendedControlOverEmbeddedObject = embeddedObject.getExtendedControlOverEmbeddedObject(); 
-    //xController.select(embeddedObject.getEmbeddedObject()); 
-    extendedControlOverEmbeddedObject.changeState(EmbedStates.LOADED); 
-    extendedControlOverEmbeddedObject.changeState(EmbedStates.RUNNING); 
-    extendedControlOverEmbeddedObject.changeState(EmbedStates.INPLACE_ACTIVE); 
-    XWindow xWindow = (XWindow) UnoRuntime.queryInterface(XWindow.class, xComponent);
-                if (xWindow == null) System.out.println("null window");*/
+                //set the size of the Draw frame
+                com.sun.star.document.XEmbeddedObjectSupplier2 xEOS2 = (com.sun.star.document.XEmbeddedObjectSupplier2) UnoRuntime.queryInterface(com.sun.star.document.XEmbeddedObjectSupplier2.class, xt);
+                XEmbeddedObject xEmbeddedObject = xEOS2.getExtendedControlOverEmbeddedObject();
+                Size aNewSize = new Size();
+                aNewSize.Height = 20000;
+                aNewSize.Width = 15000;
+                xEmbeddedObject.setVisualAreaSize(xEOS2.getAspect(), aNewSize);
             }
         } catch (Exception ex) {
             System.out.println("Could not insert OLE object");
@@ -1010,16 +1009,25 @@ public class UnoPlugin implements PlugIn{
 
             size = new Size(image.image.getWidth(null), image.image.getHeight(null));
             size = xUnitConversion.convertSizeToLogic(size, MeasureUnit.MM_100TH);
+            Size images = new Size(2,2);
+            Size imagesize = xUnitConversion.convertSizeToLogic(images, MeasureUnit.INCH);
+            System.out.println(imagesize.Width);
+            double imageRatio = (double) imagesize.Width/ (double) 256;
             if (image.size.Width > 0) {
                 //calculate the width and height
                 double ratio = (double) image.size.Width / (double) size.Width;
                 image.size.Height = (int) Math.round(ratio * size.Height);
             }else{
                 image.size = size;
+                image.size.Width = (int) (imageRatio * image.size.Width);
+                image.size.Height = (int) (imageRatio * image.size.Height);
+                System.out.println(imageRatio);
+                System.out.println(image.size.Width);
             }
             XAccessibleComponent xAccessibleComponent = UnoRuntime.queryInterface(
                     XAccessibleComponent.class, xAccessibleContext);
             Size windowSize = xUnitConversion.convertSizeToLogic(xAccessibleComponent.getSize(), MeasureUnit.MM_100TH);
+
             //if the image is greater than the width, then we scale it down to fit in the page
             if (fitToWindow) {
                 if (image.size.Width > windowSize.Width) {
@@ -1133,7 +1141,22 @@ public class UnoPlugin implements PlugIn{
         }
         return true;
     }
+    private boolean insertText(XComponent currentDocument, String s){
 
+            XTextDocument xTextDocument = (XTextDocument) UnoRuntime.queryInterface(
+                    XTextDocument.class, currentDocument);
+                        XModel xModel = (XModel)UnoRuntime.queryInterface(
+                XModel.class, currentDocument);
+ XController xController = xModel.getCurrentController();
+                XTextViewCursorSupplier xViewCursorSupplier = (XTextViewCursorSupplier)UnoRuntime.queryInterface(
+                XTextViewCursorSupplier.class, xController);
+
+                XTextViewCursor xViewCursor = xViewCursorSupplier.getViewCursor();
+                XTextCursor cursor = xViewCursor;
+                XTextRange xTextRange = (XTextRange) UnoRuntime.queryInterface(XTextRange.class, cursor);
+                xTextDocument.getText().insertString(xTextRange, s, false);
+        return true;
+    }
     /**
      * Method to insert a textframe and image together into a text document's textframe.
      * 
