@@ -142,7 +142,7 @@ public class UnoPluginWindow extends javax.swing.JFrame{
     }//GEN-LAST:event_openNewWriterButtonActionPerformed
 
     private void insertOLEButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_insertOLEButtonActionPerformed
-       UnoPlugin.insertEmptyOLEObject();
+       UnoPlugin.insertEmptyOLEObject("", "");
     }//GEN-LAST:event_insertOLEButtonActionPerformed
 
     private void autoResizeRadioActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_autoResizeRadioActionPerformed
