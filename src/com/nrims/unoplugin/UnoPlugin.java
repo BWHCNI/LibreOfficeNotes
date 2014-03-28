@@ -80,7 +80,10 @@ import java.awt.event.MouseListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.File;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 /**
  *
  * @author wang2
@@ -406,7 +409,7 @@ public class UnoPlugin implements PlugIn{
     /**
      * Insert a new OLE object into the writer document to place images into
      */
-    public static void insertEmptyOLEObject() {
+    public static void insertEmptyOLEObject(String filename, String path) {
         try {
              
             XComponentContext localContext;
@@ -445,22 +448,31 @@ public class UnoPlugin implements PlugIn{
                 XTextViewCursorSupplier.class, xController);
 
                 XTextViewCursor xViewCursor = xViewCursorSupplier.getViewCursor();
-                Point p = xViewCursor.getPosition();
-                xps.setPropertyValue("HoriOrientPosition", new Integer(p.X));
-                xps.setPropertyValue("VertOrientPosition", new Integer(p.Y));
-                
                 XTextCursor cursor = xViewCursor;
+                XPropertySet xpsCursor = (XPropertySet) UnoRuntime.queryInterface(XPropertySet.class, cursor);
                 XTextRange xTextRange = (XTextRange) UnoRuntime.queryInterface(XTextRange.class, cursor);
-                //xTextDocument.getText().insertString(xTextRange, "hello\n", false);
-                //xTextRange = (XTextRange) UnoRuntime.queryInterface(XTextRange.class, cursor);
+                DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+                Date date = new Date();
+                String title = dateFormat.format(date) + "\n";
+                if (filename != null && path != null){
+                    title+=filename + "\n" + path + "\n";
+                }
+               // xTextDocument.getText().insertString(xTextRange, title, false);
+                Point p = xViewCursor.getPosition();
+                //xps.setPropertyValue("HoriOrientPosition", new Integer(p.X));
+                //xps.setPropertyValue("VertOrientPosition", new Integer(p.Y));
+               // xps.setPropertyValue("AnchorType", TextContentAnchorType.AS_CHARACTER);
+                xTextRange = (XTextRange) UnoRuntime.queryInterface(XTextRange.class, cursor);
                 xTextDocument.getText().insertTextContent(xTextRange, xt, false);
                 //set the size of the Draw frame
                 com.sun.star.document.XEmbeddedObjectSupplier2 xEOS2 = (com.sun.star.document.XEmbeddedObjectSupplier2) UnoRuntime.queryInterface(com.sun.star.document.XEmbeddedObjectSupplier2.class, xt);
                 XEmbeddedObject xEmbeddedObject = xEOS2.getExtendedControlOverEmbeddedObject();
                 Size aNewSize = new Size();
-                aNewSize.Height = 20000;
-                aNewSize.Width = 15000;
+                aNewSize.Height = 21500;
+                aNewSize.Width = 17250;
                 xEmbeddedObject.setVisualAreaSize(xEOS2.getAspect(), aNewSize);
+                xpsCursor.setPropertyValue("BreakType", com.sun.star.style.BreakType.PAGE_AFTER); 
+                xTextDocument.getText().insertControlCharacter(xTextRange, com.sun.star.text.ControlCharacter.PARAGRAPH_BREAK, false);
             }
         } catch (Exception ex) {
             System.out.println("Could not insert OLE object");
@@ -1009,20 +1021,20 @@ public class UnoPlugin implements PlugIn{
 
             size = new Size(image.image.getWidth(null), image.image.getHeight(null));
             size = xUnitConversion.convertSizeToLogic(size, MeasureUnit.MM_100TH);
-            Size images = new Size(2,2);
+            /*Size images = new Size(2,2);
             Size imagesize = xUnitConversion.convertSizeToLogic(images, MeasureUnit.INCH);
-            System.out.println(imagesize.Width);
-            double imageRatio = (double) imagesize.Width/ (double) 256;
+            System.out.println(imagesize.Width);*/
+            //double imageRatio = (double) imagesize.Width/ (double) 256;
             if (image.size.Width > 0) {
                 //calculate the width and height
                 double ratio = (double) image.size.Width / (double) size.Width;
                 image.size.Height = (int) Math.round(ratio * size.Height);
             }else{
                 image.size = size;
-                image.size.Width = (int) (imageRatio * image.size.Width);
+                /*image.size.Width = (int) (imageRatio * image.size.Width);
                 image.size.Height = (int) (imageRatio * image.size.Height);
                 System.out.println(imageRatio);
-                System.out.println(image.size.Width);
+                System.out.println(image.size.Width);*/
             }
             XAccessibleComponent xAccessibleComponent = UnoRuntime.queryInterface(
                     XAccessibleComponent.class, xAccessibleContext);
