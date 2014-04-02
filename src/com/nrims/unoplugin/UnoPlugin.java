@@ -515,11 +515,11 @@ public class UnoPlugin implements PlugIn{
                 //check if an draw doc
                 XDrawPage xDrawPage = getXDrawPage(currentDocument);
                 if (xDrawPage != null) {
-                    System.out.println("Current document is a draw");
+                    //System.out.println("Current document is a draw");
                     insertIntoDraw(currentDocument, image);
                 }
             } else {
-                System.out.println("Current document is a writer");
+                //System.out.println("Current document is a writer");
                 insertIntoWriter(image, currentDocument);
             }
 
@@ -561,11 +561,11 @@ public class UnoPlugin implements PlugIn{
                 //check if an draw doc
                 XDrawPage xDrawPage = getXDrawPage(currentDocument);
                 if (xDrawPage != null) {
-                    System.out.println("Current document is a draw");
+                    //System.out.println("Current document is a draw");
                     insertClosestDraw(currentDocument, image);
                 }
             } else {
-                System.out.println("Current document is a writer");
+                //System.out.println("Current document is a writer");
                 insertClosestWriter(image, currentDocument);
             }
 
@@ -600,7 +600,8 @@ public class UnoPlugin implements PlugIn{
                 if (xChildAccessibleContext.getAccessibleRole() == AccessibleRole.EMBEDDED_OBJECT && withinPage(xChildAccessibleContext)) {
                     //user is over an OLE embedded object
                     XComponent xcomponent = getOLE(xChildAccessibleContext.getAccessibleName(), xTextDocument);
-                    return insertDrawGraph(image, xcomponent, xChildAccessibleContext, xComponent);
+                    Size size = getOLEDimensions(xChildAccessibleContext.getAccessibleName(), xTextDocument);
+                    return insertDrawGraph(image, xcomponent, xChildAccessibleContext, xComponent, size);
                 }
             }
             //if we hit here, this means we did not hit a text frame or OLE object
@@ -672,11 +673,12 @@ public class UnoPlugin implements PlugIn{
                     }
                     return insertTextContent(image, xTextFrame, xComponent, xChildAccessibleContext);
                 } else if (xChildAccessibleContext.getAccessibleRole() == AccessibleRole.EMBEDDED_OBJECT) {
-                    System.out.println("Over object");
+                    //System.out.println("Over object");
                     if (withinRange(xChildAccessibleContext)){
                     //user is over an OLE embedded object
                     XComponent xcomponent = getOLE(xChildAccessibleContext.getAccessibleName(), xTextDocument);
-                    return insertDrawContent(image, xcomponent, xChildAccessibleContext, xComponent);
+                    Size size = getOLEDimensions(xChildAccessibleContext.getAccessibleName(), xTextDocument);
+                    return insertDrawContent(image, xcomponent, xChildAccessibleContext, xComponent, size);
                     }
                 }
             }
@@ -725,7 +727,7 @@ public class UnoPlugin implements PlugIn{
 
             //check to see whether if in range of document
             if (withinPage(xAccessibleContext)) {
-                insertDrawGraph(image, xComponent, xAccessibleRoot, null);
+                insertDrawGraph(image, xComponent, xAccessibleRoot, null, null);
             }
         } catch (Exception e) {
             System.out.println("Error with accessibility api");
@@ -787,7 +789,7 @@ public class UnoPlugin implements PlugIn{
                 image.p = xUnitConversion.convertPointToLogic(
                         new Point((int) Math.round(location.getX() - point.X), (int) Math.round(location.getY() - point.Y)),
                         MeasureUnit.MM_100TH);
-                insertDrawContent(image, xComponent, xAccessibleRoot, null);
+                insertDrawContent(image, xComponent, xAccessibleRoot, null, null);
             }
         } catch (Exception e) {
             System.out.println("Error with accessibility api");
@@ -875,7 +877,7 @@ public class UnoPlugin implements PlugIn{
      * @param parentComponent parent component of draw page, if one exists
      * @return true if succeeded, false if not
      */
-    private boolean insertDrawGraph(ImageInfo image, XComponent xComponent, XAccessibleContext xAccessibleContext, XComponent parentComponent) {
+    private boolean insertDrawGraph(ImageInfo image, XComponent xComponent, XAccessibleContext xAccessibleContext, XComponent parentComponent, Size vSize) {
         Size size;
         Point point;
         XDrawPage xDrawPage = getXDrawPage(xComponent);
@@ -912,6 +914,9 @@ public class UnoPlugin implements PlugIn{
             XAccessibleComponent xAccessibleComponent = UnoRuntime.queryInterface(
                     XAccessibleComponent.class, xAccessibleContext);
             Size windowSize = xUnitConversion.convertSizeToLogic(xAccessibleComponent.getSize(), MeasureUnit.MM_100TH);
+            if (vSize != null){
+                windowSize = vSize;
+            }
             //if the image is greater than the width, then we scale it down to fit in the page
             if (fitToWindow) {
                 if (image.size.Width > windowSize.Width) {
@@ -999,7 +1004,7 @@ public class UnoPlugin implements PlugIn{
      * @param parentComponent parent component of draw page, if one exists
      * @return true if succeeded, false if not
      */
-    private boolean insertDrawContent(ImageInfo image, XComponent xComponent, XAccessibleContext xAccessibleContext, XComponent parentComponent) {
+    private boolean insertDrawContent(ImageInfo image, XComponent xComponent, XAccessibleContext xAccessibleContext, XComponent parentComponent, Size vSize) {
         Size size;
         Point point;
         XDrawPage xDrawPage = getXDrawPage(xComponent);
@@ -1028,7 +1033,6 @@ public class UnoPlugin implements PlugIn{
             size = xUnitConversion.convertSizeToLogic(size, MeasureUnit.MM_100TH);
             Size images = new Size(2,2);
             Size imagesize = xUnitConversion.convertSizeToPixel(images, MeasureUnit.INCH);
-            System.out.println(imagesize.Width);
             double imageRatio = (double) imagesize.Width/ (double) 256;
             if (image.size.Width > 0) {
                 //calculate the width and height
@@ -1038,13 +1042,13 @@ public class UnoPlugin implements PlugIn{
                 image.size = size;
                 image.size.Width = (int) (imageRatio * image.size.Width);
                 image.size.Height = (int) (imageRatio * image.size.Height);
-                System.out.println(imageRatio);
-                System.out.println(image.size.Width);
             }
             XAccessibleComponent xAccessibleComponent = UnoRuntime.queryInterface(
                     XAccessibleComponent.class, xAccessibleContext);
             Size windowSize = xUnitConversion.convertSizeToLogic(xAccessibleComponent.getSize(), MeasureUnit.MM_100TH);
-
+            if (vSize != null) {
+                windowSize = vSize;
+            }
             //if the image is greater than the width, then we scale it down to fit in the page
             if (fitToWindow) {
                 if (image.size.Width > windowSize.Width) {
@@ -1071,7 +1075,8 @@ public class UnoPlugin implements PlugIn{
             }else if (autoTile) {
                 int curX;
                 while ((curX = intersects(point, image.size, xDrawPage)) != 0) {
-                    if (curX + image.size.Width + 200 < windowSize.Width) {
+                    
+                    if (curX + image.size.Width + 200 < 17250) {
                         point.X = curX;
                     } else {
                         point.X = 0;
@@ -1313,6 +1318,30 @@ public class UnoPlugin implements PlugIn{
             e.printStackTrace(System.err);
         }
         return xComponent;
+
+    }
+    private Size getOLEDimensions(String name, XTextDocument xTextDocument) {
+        try {
+            //get the text frame supplier from the document
+            XTextEmbeddedObjectsSupplier xTextEmbeddedObjectsSupplier =
+                    (XTextEmbeddedObjectsSupplier) UnoRuntime.queryInterface(
+                    XTextEmbeddedObjectsSupplier.class, xTextDocument);
+
+            //get text frame objects
+            XNameAccess xNameAccess = xTextEmbeddedObjectsSupplier.getEmbeddedObjects();
+
+            //query for the object with the desired name
+            Object xTextEmbeddedObject = xNameAccess.getByName(name);
+            XTextContent xt = (XTextContent) UnoRuntime.queryInterface(XTextContent.class, xTextEmbeddedObject);
+            //get the XTextFrame interface
+            com.sun.star.document.XEmbeddedObjectSupplier2 xEOS2 = (com.sun.star.document.XEmbeddedObjectSupplier2) UnoRuntime.queryInterface(com.sun.star.document.XEmbeddedObjectSupplier2.class, xt);
+            XEmbeddedObject xEmbeddedObject = xEOS2.getExtendedControlOverEmbeddedObject();
+            return xEmbeddedObject.getVisualAreaSize(xEOS2.getAspect());
+        } catch (Exception e) {
+            System.out.println("Could not find frame with name " + name);
+            e.printStackTrace(System.err);
+        }
+        return null;
 
     }
 
