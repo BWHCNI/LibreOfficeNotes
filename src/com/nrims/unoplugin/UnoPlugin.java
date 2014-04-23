@@ -438,7 +438,7 @@ public class UnoPlugin implements PlugIn{
                         xMSF.createInstance("com.sun.star.text.TextEmbeddedObject"));
                 XPropertySet xps = (XPropertySet) UnoRuntime.queryInterface(XPropertySet.class, xt);
                 xps.setPropertyValue("CLSID", "4BAB8970-8A3B-45B3-991c-cbeeac6bd5e3");
-               
+               //xps.setPropertyValue("AnchorType", TextContentAnchorType.AS_CHARACTER);
 
                 XModel xModel = (XModel)UnoRuntime.queryInterface(
                 XModel.class, currentDocument);
@@ -458,12 +458,13 @@ public class UnoPlugin implements PlugIn{
                     title+=filename + "\n" + path + "\n";
                 }
                 xTextDocument.getText().insertString(xTextRange, title, false);
+                xTextRange = (XTextRange) UnoRuntime.queryInterface(XTextRange.class, cursor);
                 xTextDocument.getText().insertControlCharacter(xTextRange, com.sun.star.text.ControlCharacter.PARAGRAPH_BREAK, false);
                 Point p = xViewCursor.getPosition();
                 //xps.setPropertyValue("HoriOrientPosition", new Integer(p.X));
                 //xps.setPropertyValue("VertOrientPosition", new Integer(p.Y));
-               // xps.setPropertyValue("AnchorType", TextContentAnchorType.AS_CHARACTER);
-                cursor.gotoEnd(false);
+                
+                //cursor.gotoEnd(false);
                 xTextRange = (XTextRange) UnoRuntime.queryInterface(XTextRange.class, cursor);
                 xTextDocument.getText().insertTextContent(xTextRange, xt, false);
                 //set the size of the Draw frame
