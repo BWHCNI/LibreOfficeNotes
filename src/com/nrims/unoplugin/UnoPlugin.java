@@ -409,7 +409,9 @@ public class UnoPlugin implements PlugIn{
     /**
      * Insert a new OLE object into the writer document to place images into
      */
-    public static void insertEmptyOLEObject(String filename, String path) {
+    public static XComponent insertEmptyOLEObject(String filename, String path) {
+        
+        XComponent xComponent = null;
         try {
              
             XComponentContext localContext;
@@ -476,12 +478,253 @@ public class UnoPlugin implements PlugIn{
                 xEmbeddedObject.setVisualAreaSize(xEOS2.getAspect(), aNewSize);
                 //xpsCursor.setPropertyValue("BreakType", com.sun.star.style.BreakType.PAGE_AFTER); 
                 //xTextDocument.getText().insertControlCharacter(xTextRange, com.sun.star.text.ControlCharacter.PARAGRAPH_BREAK, false);
+                
+                // DJ: 10/13/2014
+                return ((com.sun.star.document.XEmbeddedObjectSupplier) xEmbeddedObject).getEmbeddedObject();
             }
         } catch (Exception ex) {
             System.out.println("Could not insert OLE object");
             ex.printStackTrace(System.err);
         }
+        return xComponent;
     }
+    
+    
+    
+    
+    
+    //DJ: 10/13/2014:
+    // "insertOLEObject" where te size is handled as an argument    /**
+
+     
+    public static XComponent insertEmptyOLEObject(String filename, String path, int width, int height) {
+        
+        XComponent xComponent = null;
+        try {
+             
+            XComponentContext localContext;
+            String OS = System.getProperty("os.name").toLowerCase();
+            //We need to check whether or not the OS is a Mac here because on Macs, the juh.jar (the Java UNO Helper)
+            //is not located in the same place as the program, so we need to specify where the program is
+            if (OS.indexOf("mac") >= 0) {
+                String oooExeFolder = "/Applications/LibreOffice.app/Contents/MacOS";
+                localContext = BootstrapSocketConnector.bootstrap(oooExeFolder);
+            } else {
+                localContext = Bootstrap.bootstrap();
+            }
+            XMultiComponentFactory xMCF = localContext.getServiceManager();
+            Object oDesktop = xMCF.createInstanceWithContext(
+                    "com.sun.star.frame.Desktop", localContext);
+            XDesktop desktop = (com.sun.star.frame.XDesktop) UnoRuntime.queryInterface(
+                    com.sun.star.frame.XDesktop.class, oDesktop);
+            XComponent currentDocument = desktop.getCurrentComponent();
+            XTextDocument xTextDocument = (XTextDocument) UnoRuntime.queryInterface(
+                    XTextDocument.class, currentDocument);
+            //current document is not a writer
+            if (xTextDocument != null) {
+                XMultiServiceFactory xMSF = (XMultiServiceFactory) UnoRuntime.queryInterface(
+                        XMultiServiceFactory.class, xTextDocument);
+                XTextContent xt = (XTextContent) UnoRuntime.queryInterface(XTextContent.class,
+                        xMSF.createInstance("com.sun.star.text.TextEmbeddedObject"));
+                XPropertySet xps = (XPropertySet) UnoRuntime.queryInterface(XPropertySet.class, xt);
+                xps.setPropertyValue("CLSID", "4BAB8970-8A3B-45B3-991c-cbeeac6bd5e3");
+               //xps.setPropertyValue("AnchorType", TextContentAnchorType.AS_CHARACTER);
+
+                XModel xModel = (XModel)UnoRuntime.queryInterface(
+                XModel.class, currentDocument);
+                
+                XController xController = xModel.getCurrentController();
+                XTextViewCursorSupplier xViewCursorSupplier = (XTextViewCursorSupplier)UnoRuntime.queryInterface(
+                XTextViewCursorSupplier.class, xController);
+
+                XTextViewCursor xViewCursor = xViewCursorSupplier.getViewCursor();
+                XTextCursor cursor = xViewCursor;
+                XPropertySet xpsCursor = (XPropertySet) UnoRuntime.queryInterface(XPropertySet.class, cursor);
+                XTextRange xTextRange = (XTextRange) UnoRuntime.queryInterface(XTextRange.class, cursor);
+                DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+                Date date = new Date();
+                String title = dateFormat.format(date) + "\n";
+                if (filename != null && path != null){
+                    title+=filename + "\n" + path + "\n";
+                }
+                xTextDocument.getText().insertString(xTextRange, title, false);
+                xTextRange = (XTextRange) UnoRuntime.queryInterface(XTextRange.class, cursor);
+                xTextDocument.getText().insertControlCharacter(xTextRange, com.sun.star.text.ControlCharacter.PARAGRAPH_BREAK, false);
+                Point p = xViewCursor.getPosition();
+                //xps.setPropertyValue("HoriOrientPosition", new Integer(p.X));
+                //xps.setPropertyValue("VertOrientPosition", new Integer(p.Y));
+                
+                //cursor.gotoEnd(false);
+                xTextRange = (XTextRange) UnoRuntime.queryInterface(XTextRange.class, cursor);
+                xTextDocument.getText().insertTextContent(xTextRange, xt, false);
+                //set the size of the Draw frame
+                com.sun.star.document.XEmbeddedObjectSupplier2 xEOS2 = (com.sun.star.document.XEmbeddedObjectSupplier2) UnoRuntime.queryInterface(com.sun.star.document.XEmbeddedObjectSupplier2.class, xt);
+                XEmbeddedObject xEmbeddedObject = xEOS2.getExtendedControlOverEmbeddedObject();
+                Size aNewSize = new Size(width, height);
+                xEmbeddedObject.setVisualAreaSize(xEOS2.getAspect(), aNewSize);
+                //xpsCursor.setPropertyValue("BreakType", com.sun.star.style.BreakType.PAGE_AFTER); 
+                //xTextDocument.getText().insertControlCharacter(xTextRange, com.sun.star.text.ControlCharacter.PARAGRAPH_BREAK, false);
+                
+                // DJ: 10/13/2014
+                return ((com.sun.star.document.XEmbeddedObjectSupplier) xEmbeddedObject).getEmbeddedObject();
+            }
+        } catch (Exception ex) {
+            System.out.println("Could not insert OLE object");
+            ex.printStackTrace(System.err);
+        }
+        return xComponent;
+    }
+    
+    //DJ: 10/13/2014:
+    public void insertOLEAndImage(ImageInfo image, String filename, String path, int width, int height,Point pnt, Size z) {
+        
+        
+        try {
+             
+            XComponentContext localContext;
+            String OS = System.getProperty("os.name").toLowerCase();
+            //We need to check whether or not the OS is a Mac here because on Macs, the juh.jar (the Java UNO Helper)
+            //is not located in the same place as the program, so we need to specify where the program is
+            if (OS.indexOf("mac") >= 0) {
+                String oooExeFolder = "/Applications/LibreOffice.app/Contents/MacOS";
+                localContext = BootstrapSocketConnector.bootstrap(oooExeFolder);
+            } else {
+                localContext = Bootstrap.bootstrap();
+            }
+            XMultiComponentFactory xMCF = localContext.getServiceManager();
+            Object oDesktop = xMCF.createInstanceWithContext(
+                    "com.sun.star.frame.Desktop", localContext);
+            XDesktop desktop = (com.sun.star.frame.XDesktop) UnoRuntime.queryInterface(
+                    com.sun.star.frame.XDesktop.class, oDesktop);
+            XComponent currentDocument = desktop.getCurrentComponent();
+            XTextDocument xTextDocument = (XTextDocument) UnoRuntime.queryInterface(
+                    XTextDocument.class, currentDocument);
+            //current document is not a writer
+            if (xTextDocument != null) {
+                XMultiServiceFactory xMSF = (XMultiServiceFactory) UnoRuntime.queryInterface(
+                        XMultiServiceFactory.class, xTextDocument);
+                XTextContent xt = (XTextContent) UnoRuntime.queryInterface(XTextContent.class,
+                        xMSF.createInstance("com.sun.star.text.TextEmbeddedObject"));
+                XPropertySet xps = (XPropertySet) UnoRuntime.queryInterface(XPropertySet.class, xt);
+                xps.setPropertyValue("CLSID", "4BAB8970-8A3B-45B3-991c-cbeeac6bd5e3");
+               //xps.setPropertyValue("AnchorType", TextContentAnchorType.AS_CHARACTER);
+
+                XModel xModel = (XModel)UnoRuntime.queryInterface(
+                XModel.class, xTextDocument);
+                
+                XController xController = xModel.getCurrentController();
+                XTextViewCursorSupplier xViewCursorSupplier = (XTextViewCursorSupplier)UnoRuntime.queryInterface(
+                XTextViewCursorSupplier.class, xController); 
+
+                
+                XTextViewCursor xViewCursor = xViewCursorSupplier.getViewCursor() ; 
+                
+              
+                
+                XTextCursor cursor = xViewCursor; 
+                
+                //System.out.println("cursor before: (" + xViewCursor.getPosition().X + "," + xViewCursor.getPosition().Y + ")");
+                //Dj:10/15/2014
+                //Short s = new Short("2");
+                
+                
+                //cursor.gotoStart(false); //works.
+                
+                //xViewCursor.gotoStart(false);
+                //for(int i = 0; i < 2 ; i++){
+                //    cursor.goLeft(s, false);
+                //    xViewCursor.goLeft(s, false);
+                //}
+                
+                /*
+                Point point = xAccessibleComponent.getLocationOnScreen();
+                Size size = xAccessibleComponent.getSize();
+                java.awt.Point location = MouseInfo.getPointerInfo().getLocation();
+                if (point.X + size.Width < location.getX()
+                
+                */
+                
+                /*
+                //Point pnt1 = ((XTextViewCursor)Cursor.getDefaultCursor()).getPosition(); // throws
+                //System.out.println("cursor after:  (" + ((XTextViewCursor)cursor).getPosition().X + "," + ((XTextViewCursor)cursor).getPosition().Y + ")");
+                System.out.println("cursor after: (" + xViewCursor.getPosition().X + "," + xViewCursor.getPosition().Y + ")");
+                System.out.println("(" +(pnt.X)+","+(pnt.Y)+")");
+                System.out.println("mouse locati: (" + MouseInfo.getPointerInfo().getLocation().x + "," + MouseInfo.getPointerInfo().getLocation().y + ")");
+                com.sun.star.awt.MouseEvent me = new com.sun.star.awt.MouseEvent();
+                System.out.println("new mouse x = " + me.X);
+                System.out.println("new mouse y = " + me.Y);
+                
+                XAccessibleComponent xac = (XAccessibleComponent)UnoRuntime.queryInterface(
+                XAccessibleComponent.class, cursor);
+
+                
+                if(xac == null)
+                    System.out.println("null  yo");
+                else 
+                    System.out.println("not null  yo");
+                
+                
+                System.out.println("Image description: ");
+                System.out.println(image.description);
+                */
+                
+                
+                //XTextRange xTextRanges = (XTextRange) UnoRuntime.queryInterface(XTextRange.class, MouseInfo.getPointerInfo());
+                //cursor.gotoRange(xTextRanges, false);
+                
+                
+                
+                XPropertySet xpsCursor = (XPropertySet) UnoRuntime.queryInterface(XPropertySet.class, cursor);
+                XTextRange xTextRange = (XTextRange) UnoRuntime.queryInterface(XTextRange.class, cursor);
+                DateFormat dateFormat = new SimpleDateFormat(" yyyy/MM/dd HH:mm:ss");
+                Date date = new Date();
+                String title = dateFormat.format(date) + "\n";
+                
+                //DJ: 10/15/2014 slightly modified for better visibility.
+                if (filename != null && path != null){
+                    title+=" " + filename.substring(filename.indexOf(':')+1) + "\n" + path;
+                }
+                
+                xTextDocument.getText().insertString(xTextRange, title, false);
+                xTextRange = (XTextRange) UnoRuntime.queryInterface(XTextRange.class, cursor);
+                xTextDocument.getText().insertControlCharacter(xTextRange, com.sun.star.text.ControlCharacter.PARAGRAPH_BREAK, false);
+                Point p = xViewCursor.getPosition();
+              
+                //xps.setPropertyValue("HoriOrientPosition", new Integer(p.X)+5);
+                //xps.setPropertyValue("VertOrientPosition", new Integer(p.Y)+5);
+                
+                //cursor.gotoEnd(true);
+                
+                // DJ: 10/15/2014 we might test for cursor position here and compare against the mouse position
+                //XTextCursor curText = xTextDocument.getText().createTextCursor();
+               // curText.gotoEnd(true);
+                
+                
+                xTextRange = (XTextRange) UnoRuntime.queryInterface(XTextRange.class, cursor);
+                xTextDocument.getText().insertTextContent(xTextRange, xt, false);
+                //set the size of the Draw frame
+                com.sun.star.document.XEmbeddedObjectSupplier2 xEOS2 = (com.sun.star.document.XEmbeddedObjectSupplier2) UnoRuntime.queryInterface(com.sun.star.document.XEmbeddedObjectSupplier2.class, xt);
+                XEmbeddedObject xEmbeddedObject = xEOS2.getExtendedControlOverEmbeddedObject();
+                Size aNewSize = new Size(width, height);
+                xEmbeddedObject.setVisualAreaSize(xEOS2.getAspect(), aNewSize);
+                //xpsCursor.setPropertyValue("BreakType", com.sun.star.style.BreakType.PAGE_AFTER); 
+                //xTextDocument.getText().insertControlCharacter(xTextRange, com.sun.star.text.ControlCharacter.PARAGRAPH_BREAK, false);
+                
+                // DJ: 10/15/2014
+                //xEmbeddedObject.update();
+                XComponent ole = xEOS2.getEmbeddedObject();
+                insertIntoOLE(image, currentDocument, ole);
+                xTextDocument.getText().insertString(xTextRange, " NOTES: ", false);
+                // insertIntoDraw(ole, image);
+            }
+        } catch (Exception ex) {
+            System.out.println("Could not insert OLE object");
+            ex.printStackTrace(System.err);
+        }
+        
+    }
+    
+    
 
     /**
      * Method to handle dropping images in LibreOffice. If the user drops
@@ -530,6 +773,44 @@ public class UnoPlugin implements PlugIn{
             return false;
         }
         return true;
+        
+       //Original Implementation:
+       /* 
+        if (title.equals("")) {
+            title = "None";
+        }
+        if (description.equals("")) {
+            description = "None";
+        }
+        ImageInfo image = new ImageInfo(i, text, title, description);
+        XComponent currentDocument = getCurrentDocument();
+        if (currentDocument == null) {
+            return false;
+        }
+        try {
+            // Querying for the text interface
+            XTextDocument xTextDocument = (XTextDocument) UnoRuntime.queryInterface(
+                    XTextDocument.class, currentDocument);
+            //current document is not a writer
+            if (xTextDocument == null) {
+                //check if an draw doc
+                XDrawPage xDrawPage = getXDrawPage(currentDocument);
+                if (xDrawPage != null) {
+                    //System.out.println("Current document is a draw");
+                    insertIntoDraw(currentDocument, image);
+                }
+            } else {
+                //System.out.println("Current document is a writer");
+                insertIntoWriter(image, currentDocument);
+            }
+
+        } catch (Exception e) {
+            System.out.println("Error reading frames");
+            e.printStackTrace(System.err);
+            return false;
+        }
+        return true;
+        */
     }
      /**
      * Method to handle dropping graphs. 
@@ -625,7 +906,7 @@ public class UnoPlugin implements PlugIn{
         }
         return true;
     }
-    /**
+        /**
      * Find where to insert into the writer document.
      * Also find if we need to copy an image's dimensions.
      * @param image image to insert
@@ -683,6 +964,81 @@ public class UnoPlugin implements PlugIn{
                     }
                 }
             }
+
+            //insertOLEAndImage(image, image.title, image.description, 17250, 12250);
+
+            // working v1
+            //insertOLEAndImage(image, image.title, "", 17250, 12250);
+            // working v2
+            xAccessibleContext = getNextContext(xAccessibleContext, 0);
+            XAccessibleComponent xAccessibleComponent = UnoRuntime.queryInterface(
+                    XAccessibleComponent.class, xAccessibleContext);
+            Point point = xAccessibleComponent.getLocationOnScreen();
+            insertOLEAndImage(image, image.title, "", 17250, 9000, point, xAccessibleComponent.getSize());
+                
+               
+        } catch (Exception e) {
+            System.out.println("Error with accessibility api");
+            e.printStackTrace(System.err);
+            return false;
+        }
+        return true;
+        
+        // DJ: this is the original implementation:
+        /*
+        try {
+            XTextDocument xTextDocument = (XTextDocument) UnoRuntime.queryInterface(
+                    XTextDocument.class, xComponent);
+            // Querying for the text service factory
+            XMultiServiceFactory xMSF = (XMultiServiceFactory) UnoRuntime.queryInterface(
+                    XMultiServiceFactory.class, xTextDocument);
+            XAccessible mXRoot = makeRoot(xMSF, xTextDocument);
+            XAccessibleContext xAccessibleRoot = mXRoot.getAccessibleContext();
+
+            //scope: xTextDocument -> ScrollPane -> Document
+            //get the scroll pane object
+            XAccessibleContext xAccessibleContext = getNextContext(xAccessibleRoot, 0);
+
+            //get the document object
+            xAccessibleContext = getNextContext(xAccessibleContext, 0);
+
+            int numChildren = xAccessibleContext.getAccessibleChildCount();
+            
+            
+            
+            //loop through all the children of the document and find the text frames
+            for (int i = 0; i < numChildren; i++) {
+                XAccessibleContext xChildAccessibleContext = getNextContext(xAccessibleContext, i);
+                if (xChildAccessibleContext.getAccessibleRole() == AccessibleRole.TEXT_FRAME && withinRange(xChildAccessibleContext)) {
+                    //loop through all images in text frame to see if we are over any of them
+                    XTextFrame xTextFrame = getFrame(xChildAccessibleContext.getAccessibleName(), xTextDocument);
+                    if (dropToResize) {
+                        numChildren = xChildAccessibleContext.getAccessibleChildCount();
+                        for (int j = 0; j < numChildren; j++) {
+                            xChildAccessibleContext = getNextContext(xAccessibleContext, j);
+                            if (xChildAccessibleContext.getAccessibleRole() == AccessibleRole.GRAPHIC && withinRange(xChildAccessibleContext)) {
+                                //if we are over the image, then we insert a new image scaled to the width of the one we're dropping on
+                                XUnitConversion xUnitConversion = getXUnitConversion(xComponent);
+                                
+                                XAccessibleComponent xAccessibleComponent = UnoRuntime.queryInterface(
+                                        XAccessibleComponent.class, xChildAccessibleContext);
+                                Size size = xUnitConversion.convertSizeToLogic(xAccessibleComponent.getSize(), MeasureUnit.MM_100TH);
+                                image.size.Width = size.Width;
+                                j = numChildren;
+                            }
+                        }
+                    }
+                    return insertTextContent(image, xTextFrame, xComponent, xChildAccessibleContext);
+                } else if (xChildAccessibleContext.getAccessibleRole() == AccessibleRole.EMBEDDED_OBJECT) {
+                    //System.out.println("Over object");
+                    if (withinRange(xChildAccessibleContext)){
+                    //user is over an OLE embedded object
+                    XComponent xcomponent = getOLE(xChildAccessibleContext.getAccessibleName(), xTextDocument);
+                    Size size = getOLEDimensions(xChildAccessibleContext.getAccessibleName(), xTextDocument);
+                    return insertDrawContent(image, xcomponent, xChildAccessibleContext, xComponent, size);
+                    }
+                }
+            }
             //if we hit here, this means we did not hit a text frame or OLE object
             if (withinRange(xAccessibleContext)) {
                 XUnitConversion xUnitConversion = getXUnitConversion(xComponent);
@@ -702,6 +1058,66 @@ public class UnoPlugin implements PlugIn{
             return false;
         }
         return true;
+        */
+    }
+        
+    
+    
+    //DJ: 10/13/2014
+    /**
+     * Find where to insert into the writer document.
+     * Also find if we need to copy an image's dimensions.
+     * @param image image to insert
+     * @param xComponent component of main window
+     * @return true if succeeded, false if not
+     */
+    private boolean insertIntoOLE(ImageInfo image, XComponent xComponent, XComponent oleComponent) {
+        
+        try {
+            XTextDocument xTextDocument = (XTextDocument) UnoRuntime.queryInterface(
+                    XTextDocument.class, xComponent);
+            // Querying for the text service factory
+            XMultiServiceFactory xMSF = (XMultiServiceFactory) UnoRuntime.queryInterface(
+                    XMultiServiceFactory.class, xTextDocument);
+            XAccessible mXRoot = makeRoot(xMSF, xTextDocument);
+            XAccessibleContext xAccessibleRoot = mXRoot.getAccessibleContext();
+
+            //scope: xTextDocument -> ScrollPane -> Document
+            //get the scroll pane object
+            XAccessibleContext xAccessibleContext = getNextContext(xAccessibleRoot, 0);
+
+            //get the document object
+            xAccessibleContext = getNextContext(xAccessibleContext, 0);
+
+            int numChildren = xAccessibleContext.getAccessibleChildCount();
+            
+            
+            
+            //loop through all the children of the document and find the text frames
+            for (int i = 0; i < numChildren; i++) {
+                XAccessibleContext xChildAccessibleContext = getNextContext(xAccessibleContext, i);
+                if (xChildAccessibleContext.getAccessibleRole() == AccessibleRole.EMBEDDED_OBJECT) {
+                    
+                    
+                    XComponent xcomponent = getOLE(xChildAccessibleContext.getAccessibleName(), xTextDocument);
+                    
+                    //System.out.println("here");
+                    if(oleComponent.equals(xcomponent)){
+                        //System.out.println("yes");
+                        Size size = getOLEDimensions(xChildAccessibleContext.getAccessibleName(), xTextDocument);
+                        return insertDrawContent(image, xcomponent, xChildAccessibleContext, xComponent, size);
+                    }
+                }
+            }
+            
+        } catch (Exception e) {
+            System.out.println("Error with accessibility api");
+            e.printStackTrace(System.err);
+            return false;
+        }
+        return true;
+        
+        
     }
         /**
      * Find where to insert into the draw document.
@@ -1008,7 +1424,12 @@ public class UnoPlugin implements PlugIn{
     private boolean insertDrawContent(ImageInfo image, XComponent xComponent, XAccessibleContext xAccessibleContext, XComponent parentComponent, Size vSize) {
         Size size;
         Point point;
-        XDrawPage xDrawPage = getXDrawPage(xComponent);
+        XDrawPage xDrawPage = getXDrawPage(xComponent); 
+        
+        //DJ: 10/15/2014 :  just for testing
+        //System.out.println("Does draw have elements: " + xDrawPage.hasElements());
+        
+        
         XUnitConversion xUnitConversion;
         if (xDrawPage == null) {
             return false;
@@ -1136,7 +1557,13 @@ public class UnoPlugin implements PlugIn{
             XPropertySet xTextProps = (XPropertySet) UnoRuntime.queryInterface(
                     XPropertySet.class, xTextRange);
             xTextProps.setPropertyValue("CharHeight", new Float(11));
-            xTextRange.setString(image.text);
+            
+            //DJ: 10/15/2014 Slightly changed for visibility purposes:
+            //xTextRange.setString(image.text); // original.
+            xTextRange.setString(image.text + " [" + image.title.substring(0, image.title.indexOf('[')) + "]" + " - Plane [#" + image.planeNumber + "]\n" +
+                    "Brightness [" + image.BrightnessLevel + "]\n" +
+                    "Contrast [" + image.contrastLevel   + "]\n"); //new
+                                 
 
             //get XShapes interface to group images
             XMultiServiceFactory xMultiServiceFactory = (XMultiServiceFactory) UnoRuntime.queryInterface(XMultiServiceFactory.class, xMCF);
@@ -1157,6 +1584,12 @@ public class UnoPlugin implements PlugIn{
                     com.sun.star.beans.XPropertySet.class, xShapeGroup);
             xPropSet.setPropertyValue("Title", image.title);
             xPropSet.setPropertyValue("Description", image.description);
+            
+            
+            //DJ: 10/15/2014 :  just for testing
+            //System.out.println("2- Does draw have elements: " + xDrawPage.hasElements());
+           
+            
         } catch (Exception e) {
             System.out.println("Couldn't insert image");
             e.printStackTrace(System.err);
@@ -1663,7 +2096,12 @@ public class UnoPlugin implements PlugIn{
         public String text;
         public String title;
         public String description;
-
+        
+        //DJ: 10/17/2014
+        public int planeNumber;
+        public int contrastLevel;
+        public int BrightnessLevel;
+        
         public ImageInfo(Image i) {
             this.image = i;
         }
@@ -1675,6 +2113,29 @@ public class UnoPlugin implements PlugIn{
             this.description = d;
             size = new Size(0, 0);
             p = new Point(0, 0);
+            
+            //DJ: 10/17/2014
+            int planeNumberLine_frstIndex = d.indexOf("Plane Number    : ");
+            int planeNumberLine_lastIndex = d.lastIndexOf("Plane Number    : ");
+            
+            int contrastLine_frstIndex = d.indexOf("Contrast   Level: ");
+            int contrastLine_lastIndex = d.lastIndexOf("Contrast   Level: ");
+            
+            int brightnessLine_frstIndex = d.indexOf("Brightness Level: ");
+            int brightnessLine_lastIndex = d.lastIndexOf("Brightness Level: ");
+            
+            String planeNumberLine = d.substring(planeNumberLine_lastIndex, contrastLine_frstIndex-1);
+            java.util.Scanner in = new java.util.Scanner(planeNumberLine).useDelimiter("[^0-9]+");
+            this.planeNumber = in.nextInt();
+            
+            String contrastLevelLine   = d.substring(contrastLine_lastIndex,    brightnessLine_frstIndex-1);
+            in = new java.util.Scanner(contrastLevelLine).useDelimiter("[^0-9]+");
+            this.contrastLevel = in.nextInt();
+            
+            String BrightnessLevelLine = d.substring(brightnessLine_lastIndex, d.length()-1);
+            in = new java.util.Scanner(BrightnessLevelLine).useDelimiter("[^0-9]+");
+            this.BrightnessLevel = in.nextInt();
+            
         }
     }
 }

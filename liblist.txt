@@ -1,0 +1,17 @@
+lib:
+bootstrapconnector.jar
+ij.jar
+java_uno.jar
+juh.jar
+jurt.jar
+plugins
+ridl.jar
+unoil.jar
+unoloader.jar
+
+lib/plugins:
+macros
+
+lib/plugins/macros:
+dragdrop_tools.fiji.ijm
+README.txt
