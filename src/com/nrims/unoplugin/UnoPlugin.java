@@ -317,6 +317,44 @@ public class UnoPlugin implements PlugIn{
             return true;
         else return false;
     }
+     //DJ: 10/24/2014
+    /**
+     * Opens a writer document that already exists.
+     *
+     * @return true on success, false otherwise
+     */
+    public static boolean openDoc(String notesFilepath) {
+        //System.out.println("My Note's Path Is: " + notesFilepath);
+        try {
+            XComponentContext localContext;
+            String OS = System.getProperty("os.name").toLowerCase();
+            //We need to check whether or not the OS is a Mac here because on Macs, the juh.jar (the Java UNO Helper)
+            //is not located in the same place as the program, so we need to specify where the program is
+            if (OS.indexOf("mac") >= 0) {
+                String oooExeFolder = "/Applications/LibreOffice.app/Contents/MacOS";
+                localContext = BootstrapSocketConnector.bootstrap(oooExeFolder);
+            } else {
+                localContext = Bootstrap.bootstrap();
+            }
+            XMultiComponentFactory xMCF = localContext.getServiceManager();
+            Object oDesktop = xMCF.createInstanceWithContext(
+                    "com.sun.star.frame.Desktop", localContext);
+            XDesktop desktop = (com.sun.star.frame.XDesktop) UnoRuntime.queryInterface(
+                    com.sun.star.frame.XDesktop.class, oDesktop);
+
+            
+            XComponentLoader xComponentLoader = (XComponentLoader) UnoRuntime.queryInterface(
+                    XComponentLoader.class, desktop);
+            PropertyValue[] loadProps = new PropertyValue[0];
+            
+            
+            XComponent currentDocument = xComponentLoader.loadComponentFromURL("file://"+notesFilepath, "_blank", 0, loadProps);
+            return true;
+        } catch (Exception e) {
+            System.out.println("Failure to create new document");
+            return false;
+        }
+    }
     /**
      * 
      */
@@ -576,11 +614,10 @@ public class UnoPlugin implements PlugIn{
     }
     
     //DJ: 10/13/2014:
+    // inserts an OLE frame as well as an image at the same time.
     public void insertOLEAndImage(ImageInfo image, String filename, String path, int width, int height,Point pnt, Size z) {
         
-        
         try {
-             
             XComponentContext localContext;
             String OS = System.getProperty("os.name").toLowerCase();
             //We need to check whether or not the OS is a Mac here because on Macs, the juh.jar (the Java UNO Helper)
@@ -714,7 +751,7 @@ public class UnoPlugin implements PlugIn{
                 //xEmbeddedObject.update();
                 XComponent ole = xEOS2.getEmbeddedObject();
                 insertIntoOLE(image, currentDocument, ole);
-                xTextDocument.getText().insertString(xTextRange, " NOTES: ", false);
+                xTextDocument.getText().insertString(xTextRange, " NOTES: \n\n", false);
                 // insertIntoDraw(ole, image);
             }
         } catch (Exception ex) {
@@ -812,6 +849,57 @@ public class UnoPlugin implements PlugIn{
         return true;
         */
     }
+    
+    
+     // DJ: 24/10/2014
+     // another version of "dropImages" where a the 4th arg is a array of strings
+     /**
+     * Method to handle dropping images in LibreOffice. If the user drops
+     * outside a text frame, nothing happens. If the user drops inside a text
+     * frame, and over no images, a new image is inserted into the text frame If
+     * the user drops inside a text frame and over an image, the existing image
+     * is replaced with the new one, albeit with same size and position
+     * @param i java.awt.image to be inserted
+     * @param text caption for the image
+     * @param title title for the image, under "Description..."
+     * @param description description for the image, under "Description..."
+     * @return true if succeeded, false if not
+     */
+    public boolean dropImage(Image i, String text, String title, String[] descriptions) {
+        if (title.equals("")) {
+            title = "None";
+        }
+
+        ImageInfo image = new ImageInfo(i, text, title, descriptions);
+        XComponent currentDocument = getCurrentDocument();
+        if (currentDocument == null) {
+            return false;
+        }
+        try {
+            // Querying for the text interface
+            XTextDocument xTextDocument = (XTextDocument) UnoRuntime.queryInterface(
+                    XTextDocument.class, currentDocument);
+            //current document is not a writer
+            if (xTextDocument == null) {
+                //check if an draw doc
+                XDrawPage xDrawPage = getXDrawPage(currentDocument);
+                if (xDrawPage != null) {
+                    //System.out.println("Current document is a draw");
+                    insertIntoDraw(currentDocument, image);
+                }
+            } else {
+                //System.out.println("Current document is a writer");
+                insertIntoWriter(image, currentDocument);
+            }
+
+        } catch (Exception e) {
+            System.out.println("Error reading frames");
+            e.printStackTrace(System.err);
+            return false;
+        }
+        return true;
+    }
+    
      /**
      * Method to handle dropping graphs. 
      * This method is called when users in OpenMIMS right click a plot and select
@@ -1556,13 +1644,21 @@ public class UnoPlugin implements PlugIn{
             XTextRange xTextRange = xTextCursor.getStart();
             XPropertySet xTextProps = (XPropertySet) UnoRuntime.queryInterface(
                     XPropertySet.class, xTextRange);
-            xTextProps.setPropertyValue("CharHeight", new Float(11));
+            xTextProps.setPropertyValue("CharHeight", new Float(9)); //DJ intitially was 11
             
             //DJ: 10/15/2014 Slightly changed for visibility purposes:
             //xTextRange.setString(image.text); // original.
-            xTextRange.setString(image.text + " [" + image.title.substring(0, image.title.indexOf('[')) + "]" + " - Plane [#" + image.planeNumber + "]\n" +
-                    "Brightness [" + image.BrightnessLevel + "]\n" +
-                    "Contrast [" + image.contrastLevel   + "]\n"); //new
+            
+            //DJ: 10/24/2014
+            String stringRange = image.text;
+            if(image.imageType.equals("MASS_IMAGE") ){
+                stringRange += " - Plane [#" + image.planeNumber + "]\n";
+            } else if( (image.imageType.equals("HSI_IMAGE") || image.imageType.equals("RATIO_IMAGE") ) && !image.planeNumber.equals("N/A") ) {
+                stringRange += " - Plane [#" + image.planeNumber + "]\n";
+            }
+            xTextRange.setString(stringRange);
+
+            
                                  
 
             //get XShapes interface to group images
@@ -2087,7 +2183,13 @@ public class UnoPlugin implements PlugIn{
      * Helper class to help pass parameters through the various methods of the plugin
      */
     public class ImageInfo {
-
+        
+        private final int IMAGE_TYPE       = 0;
+        private final int DISPLAY_MIN      = 1;
+        private final int DISPLAY_MAX      = 2;
+        private final int PLANE_NUMBER     = 3;
+        private final int FILE_DESCRIPTION = 4;
+        
         public Point p;
         public Image image;
         public XTextContent xImage;
@@ -2098,44 +2200,49 @@ public class UnoPlugin implements PlugIn{
         public String description;
         
         //DJ: 10/17/2014
-        public int planeNumber;
-        public int contrastLevel;
-        public int BrightnessLevel;
+        public String imageType   = "";
+        public String displayMin  = "";
+        public String displayMax  = "";
+        public String planeNumber = "";
         
         public ImageInfo(Image i) {
             this.image = i;
         }
-
+        
         public ImageInfo(Image i, String n, String t, String d) {
             this.image = i;
             this.text = n;
             this.title = t;
+            
             this.description = d;
+            
             size = new Size(0, 0);
             p = new Point(0, 0);
+        }
+
+        // DJ: 10/24/2014
+        // an another version of the constructor where the 4th arg
+        // is array of string instead of being just one string.
+        // That way we could easily get each image property/description.
+        public ImageInfo(Image i, String n, String t, String[] d) {
+            this.image = i;
+            this.text = n;
+            this.title = t;
             
-            //DJ: 10/17/2014
-            int planeNumberLine_frstIndex = d.indexOf("Plane Number    : ");
-            int planeNumberLine_lastIndex = d.lastIndexOf("Plane Number    : ");
+            //DJ: 10/24/2014
+            this.imageType   = d[IMAGE_TYPE];
+            this.displayMin  = d[DISPLAY_MIN];
+            this.displayMax  = d[DISPLAY_MAX];
+            this.planeNumber = d[PLANE_NUMBER];
+            this.description = 
+                    "Image Type: "   + imageType   + "\n" +
+                    "Display Min: "  + displayMin  + "\n" +
+                    "Display Min: "  + displayMax  + "\n" +
+                    "Plane Number: " + planeNumber + "\n" +
+                    d[FILE_DESCRIPTION];
             
-            int contrastLine_frstIndex = d.indexOf("Contrast   Level: ");
-            int contrastLine_lastIndex = d.lastIndexOf("Contrast   Level: ");
-            
-            int brightnessLine_frstIndex = d.indexOf("Brightness Level: ");
-            int brightnessLine_lastIndex = d.lastIndexOf("Brightness Level: ");
-            
-            String planeNumberLine = d.substring(planeNumberLine_lastIndex, contrastLine_frstIndex-1);
-            java.util.Scanner in = new java.util.Scanner(planeNumberLine).useDelimiter("[^0-9]+");
-            this.planeNumber = in.nextInt();
-            
-            String contrastLevelLine   = d.substring(contrastLine_lastIndex,    brightnessLine_frstIndex-1);
-            in = new java.util.Scanner(contrastLevelLine).useDelimiter("[^0-9]+");
-            this.contrastLevel = in.nextInt();
-            
-            String BrightnessLevelLine = d.substring(brightnessLine_lastIndex, d.length()-1);
-            in = new java.util.Scanner(BrightnessLevelLine).useDelimiter("[^0-9]+");
-            this.BrightnessLevel = in.nextInt();
-            
+            size = new Size(0, 0);
+            p = new Point(0, 0);
         }
     }
 }
