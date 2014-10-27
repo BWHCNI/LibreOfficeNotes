@@ -303,6 +303,7 @@ public class UnoPlugin implements PlugIn{
                     com.sun.star.frame.XDesktop.class, oDesktop);
             //Get the document with focus here
             XComponent currentDocument = desktop.getCurrentComponent();
+            
             return currentDocument;
         } catch (Exception e) {
             System.out.println("Failure to connect");
@@ -310,6 +311,8 @@ public class UnoPlugin implements PlugIn{
         }
         return null;
     }
+    
+    
      private boolean isImpress(XComponent xComponent){
         XModel xModel = (XModel) UnoRuntime.queryInterface(XModel.class, xComponent);
         XServiceInfo xServiceInfo = (XServiceInfo) UnoRuntime.queryInterface(XServiceInfo.class, xModel);
@@ -346,9 +349,16 @@ public class UnoPlugin implements PlugIn{
             XComponentLoader xComponentLoader = (XComponentLoader) UnoRuntime.queryInterface(
                     XComponentLoader.class, desktop);
             PropertyValue[] loadProps = new PropertyValue[0];
+           
+            // DJ: "_default" argument checks if the document is already opened.
+            // if it is, it pushes it to be visible upfront
+            // if it is not already opened, it just opens it using the provide url (first argument)
+            
+            //XComponent currentDocument = xComponentLoader.loadComponentFromURL("file://"+notesFilepath, "_blank", 0, loadProps);
+            XComponent currentDocument = xComponentLoader.loadComponentFromURL("file://"+notesFilepath, "_default", 0, loadProps);
             
             
-            XComponent currentDocument = xComponentLoader.loadComponentFromURL("file://"+notesFilepath, "_blank", 0, loadProps);
+            
             return true;
         } catch (Exception e) {
             System.out.println("Failure to create new document");
@@ -2237,7 +2247,7 @@ public class UnoPlugin implements PlugIn{
             this.description = 
                     "Image Type: "   + imageType   + "\n" +
                     "Display Min: "  + displayMin  + "\n" +
-                    "Display Min: "  + displayMax  + "\n" +
+                    "Display Max: "  + displayMax  + "\n" +
                     "Plane Number: " + planeNumber + "\n" +
                     d[FILE_DESCRIPTION];
             
