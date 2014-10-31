@@ -728,9 +728,10 @@ public class UnoPlugin implements PlugIn{
                 String title = dateFormat.format(date) + "\n";
                 
                 //DJ: 10/15/2014 slightly modified for better visibility.
-                if (filename != null && path != null){
-                    title+=" " + filename.substring(filename.indexOf(':')+1) + "\n" + path;
-                }
+                title += image.getImageTitle();
+                //if (filename != null && path != null){
+                //        title+=" " + filename.substring(filename.indexOf(':')+1) + "\n" + path;    
+                //}
                 
                 xTextDocument.getText().insertString(xTextRange, title, false);
                 xTextRange = (XTextRange) UnoRuntime.queryInterface(XTextRange.class, cursor);
@@ -1072,7 +1073,7 @@ public class UnoPlugin implements PlugIn{
             XAccessibleComponent xAccessibleComponent = UnoRuntime.queryInterface(
                     XAccessibleComponent.class, xAccessibleContext);
             Point point = xAccessibleComponent.getLocationOnScreen();
-            insertOLEAndImage(image, image.title, "", 17250, 9000, point, xAccessibleComponent.getSize());
+            insertOLEAndImage(image, image.title, "", 17250, 19550, point, xAccessibleComponent.getSize());
                 
                
         } catch (Exception e) {
@@ -1631,7 +1632,13 @@ public class UnoPlugin implements PlugIn{
                     XMultiServiceFactory.class, xComponent);
             Object drawShape = xDrawFactory.createInstance("com.sun.star.drawing.TextShape");
             XShape xDrawShape = (XShape) UnoRuntime.queryInterface(XShape.class, drawShape);
-            xDrawShape.setSize(new Size(image.size.Width, 1000));
+            
+            // DJ: 10/31/2014
+            if(image.imageType.equals("HSI_IMAGE")){
+                xDrawShape.setSize(new Size(image.size.Width, 900));
+            } else {
+                xDrawShape.setSize(new Size(image.size.Width, 1000));
+            }
             xDrawShape.setPosition(new Point(point.X, point.Y + image.size.Height));
 
             //add OpenMims Image
@@ -1663,8 +1670,10 @@ public class UnoPlugin implements PlugIn{
             String stringRange = image.text;
             if(image.imageType.equals("MASS_IMAGE") ){
                 stringRange += " - Plane [#" + image.planeNumber + "]\n";
-            } else if( (image.imageType.equals("HSI_IMAGE") || image.imageType.equals("RATIO_IMAGE") ) && !image.planeNumber.equals("N/A") ) {
+            } else if( image.imageType.equals("RATIO_IMAGE") && !image.planeNumber.equals("N/A") ) {
                 stringRange += " - Plane [#" + image.planeNumber + "]\n";
+            } else if( image.imageType.equals("HSI_IMAGE") && !image.planeNumber.equals("N/A") ){
+                stringRange += " - Plane [#" + image.planeNumber + "]";
             }
             xTextRange.setString(stringRange);
 
@@ -2195,10 +2204,20 @@ public class UnoPlugin implements PlugIn{
     public class ImageInfo {
         
         private final int IMAGE_TYPE       = 0;
-        private final int DISPLAY_MIN      = 1;
-        private final int DISPLAY_MAX      = 2;
-        private final int PLANE_NUMBER     = 3;
-        private final int FILE_DESCRIPTION = 4;
+        private final int IMAGE_TITLE      = 1;
+        private final int DISPLAY_MIN      = 2;
+        private final int DISPLAY_MAX      = 3;
+        private final int PLANE_NUMBER     = 4;
+        private final int FILE_DESCRIPTION = 5;
+        
+        /*
+        static final String MASS_IMAGE      = "MASS_IMAGE";
+        static final String SUM_IMAGE       = "SUM_IMAGE";
+        static final String RATIO_IMAGE     = "RATIO_IMAGE";
+        static final String HSI_IMAGE       = "HSI_IMAGE";
+        static final String COMPOSITE_IMAGE = "COMPOSITE_IMAGE";
+        static final String NON_MIMSIMAGE   = "NON_MIMSIMAGE";
+        */
         
         public Point p;
         public Image image;
@@ -2211,6 +2230,7 @@ public class UnoPlugin implements PlugIn{
         
         //DJ: 10/17/2014
         public String imageType   = "";
+        public String imageTitle  = "";
         public String displayMin  = "";
         public String displayMax  = "";
         public String planeNumber = "";
@@ -2241,6 +2261,7 @@ public class UnoPlugin implements PlugIn{
             
             //DJ: 10/24/2014
             this.imageType   = d[IMAGE_TYPE];
+            this.imageTitle  = d[IMAGE_TITLE];
             this.displayMin  = d[DISPLAY_MIN];
             this.displayMax  = d[DISPLAY_MAX];
             this.planeNumber = d[PLANE_NUMBER];
@@ -2253,6 +2274,10 @@ public class UnoPlugin implements PlugIn{
             
             size = new Size(0, 0);
             p = new Point(0, 0);
+        }
+        
+        public String getImageTitle(){
+            return imageTitle;
         }
     }
 }
