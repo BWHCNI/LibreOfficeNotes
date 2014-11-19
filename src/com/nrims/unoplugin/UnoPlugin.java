@@ -122,14 +122,14 @@ public class UnoPlugin implements PlugIn{
     public static UnoPlugin unoPlugin;
     
     // DJ: 11/10/2014
-    
-    private static int notesCountTracker = 0;
     private static String previousEvent = "";
     //private static StringBuffer sSaveUrl = new StringBuffer("/nrims/home3/djsia/Desktop/backupTestFolder/");
     static boolean docChangesFlag;
     
     static NotesSaver notesSaver = null; //new NotesSaver(currentDocument, true, exec); 
     static Thread notesSaverThread = null;
+    static final int SLEEP_TIME = 15;  // seconds 
+    
     
     
     public UnoPlugin(){
@@ -462,10 +462,22 @@ public class UnoPlugin implements PlugIn{
             //propertyValue[1].Value = "StarOffice XML (Writer)";
             //propertyValue[1].Value = "StarWriter 4.0";
             
+            
+            // we make a system copy to the notes files when we first open it.
             DateFormat dateFormat = new SimpleDateFormat("yyyy_MM_dd__HH_mm_ss");
             java.util.Calendar cal = java.util.Calendar.getInstance();
             System.out.println(dateFormat.format(cal.getTime())); //2014/08/06 16:00:22
             
+            File notesFile = new File(notesFilepath);
+            String destinFilePath = sSaveUrl.toString()+"notes_"+dateFormat.format(cal.getTime())+ "_copy" + ".odt";
+            File destFile = new File(destinFilePath);
+            
+            //System.out.println("notesFile: " + notesFile.getAbsolutePath());
+            //System.out.println("destinFile: " + destFile.getAbsolutePath());
+            
+            org.apache.commons.io.FileUtils.copyFile(notesFile, destFile, false);
+            
+            /*
             try {
                 notesFilepath = "file://" + sSaveUrl.toString()+"notes_"+dateFormat.format(cal.getTime())+".odt";
                 //notesFilepath = sSaveUrl.toString()+"notes_"+ dateFormat.format(cal.getTime()) +".odt";
@@ -478,6 +490,7 @@ public class UnoPlugin implements PlugIn{
             }catch (IOException e) {
                 e.printStackTrace();
             }
+            */
             
             //xStorable.storeToURL( sSaveUrl.toString(), propertyValue );
 
@@ -657,25 +670,30 @@ public class UnoPlugin implements PlugIn{
                         
                     }
                     
-                    else if (de.EventName.equals("OnLayoutFinished")){
+                    else if (de.EventName.equals("OnTitleChanged")){
+                        previousEvent = "OnTitleChanged";
+                    }
+                    
+                    else if (de.EventName.equals("OnLayoutFinished")  && previousEvent.equals("OnSaveDone") == false ){
                         docChangesFlag = true;
                         previousEvent = "OnLayoutFinished";
                         System.out.println("docChangesFlag = " + docChangesFlag);
                     }
                     
-                    else if(de.EventName.equals("OnModifyChanged") || de.EventName.equals("OnLayoutFinished")  /*&& !previousEvent.equals("OnSave")*/){
+                    else if(de.EventName.equals("OnModifyChanged") /* || de.EventName.equals("OnLayoutFinished")  /*&& !previousEvent.equals("OnSave")*/){
                         
                         
                         
-                        if(previousEvent.equals("OnSave")){
+                        if(previousEvent.equals("OnSave") || previousEvent.equals("OnTitleChanged") ){
                           //  System.out.println("\tPrevious event was a SAVE EVENT");
-                            previousEvent = "OnModifyChanged";
+                            //previousEvent = "OnModifyChanged";
                         } else{
                             //System.out.println(" ===============================>> EVENT IS : " + de.EventName);
                             //notesSaver.setFlag(true);
                             docChangesFlag = true;
-                            System.out.println("docChangesFlag = " + docChangesFlag);
+                            System.out.println("docChangesFlag = " + docChangesFlag + "inside ONMODIDYCHANGED/ONLAYOUTFINISHED/ELSE/PREV=" + previousEvent);
                         }
+                        previousEvent = "OnModifyChanged";
                         
                     }
                     
@@ -1243,6 +1261,9 @@ public class UnoPlugin implements PlugIn{
                 //System.out.println("Title is: " + title);
                 
                 xTextDocument.getText().insertString(xTextRange, title, false);
+                
+               
+                
                 // The three following lines to be uncommented:
                 //xTextRange = (XTextRange) UnoRuntime.queryInterface(XTextRange.class, cursor);
                 xTextDocument.getText().insertControlCharacter(xTextRange, com.sun.star.text.ControlCharacter.PARAGRAPH_BREAK, false);
@@ -2901,7 +2922,7 @@ public class UnoPlugin implements PlugIn{
                 
                 System.out.println("Thread woke up");
                 
-                if (docChangesFlag || (!docChangesFlag && previousEvent.equals("OnModifyChanged"))) {
+                if (docChangesFlag) { // might add  || (!docChangesFlag && previousEvent.equals("OnModifyChanged"))
                     System.out.println("CH Flag +");
                     
                     System.out.println("Change happened within last 10 seconds ===> to save it");
@@ -2943,7 +2964,6 @@ public class UnoPlugin implements PlugIn{
                             java.util.Calendar cal = java.util.Calendar.getInstance();
                             notesFilepath = "file://" + sSaveUrl.toString() + "notes_" + dateFormat.format(cal.getTime()) + ".odt";
                             xStorable.storeToURL(notesFilepath, propertyValue);
-                            notesCountTracker++;
 
                         } catch (IOException e) {
                             e.printStackTrace();
@@ -2960,7 +2980,7 @@ public class UnoPlugin implements PlugIn{
                     System.out.println("CH Flag -");
                 }
                 try {
-                    Thread.sleep((long) 15 * 1000);
+                    Thread.sleep((long) SLEEP_TIME * 1000);  // in milliseconds
                 } catch (InterruptedException e) {
                     System.out.println(e);
                     //       flag = false;
@@ -2998,7 +3018,12 @@ public class UnoPlugin implements PlugIn{
                     File destinFile = new File(this.destinationPath);
                     //System.out.println("notes file is : " + sourceFile.getAbsolutePath());
                     //System.out.println("backupFile file is : " + destinFile.getAbsolutePath());
-                    org.apache.commons.io.FileUtils.copyFile(sourceFile, destinFile);
+                    //org.apache.commons.io.FileUtils.copyFile(sourceFile, destinFile);
+                    
+                    
+                    // The "false" argument means that we don't preserve the original file date but rather have the
+                    // time where the actual coying happens.
+                    org.apache.commons.io.FileUtils.copyFile(sourceFile, destinFile, false);
                     
                     System.out.println("\nNOTES BACKEDUP BEFORE THE FINAL SAVE ==> " + destinFile + "\n");
                     running = false;
