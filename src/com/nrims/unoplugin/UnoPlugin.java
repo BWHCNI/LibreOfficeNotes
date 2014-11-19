@@ -9,6 +9,7 @@ package com.nrims.unoplugin;
  * @author wang2
  */
 
+import com.sun.star.accessibility.AccessibleEventObject;
 import ij.*;
 import ooo.connector.BootstrapSocketConnector;
 import ij.plugin.*;
@@ -45,6 +46,7 @@ import com.sun.star.text.XTextFramesSupplier;
 import com.sun.star.accessibility.XAccessible;
 import com.sun.star.accessibility.XAccessibleComponent;
 import com.sun.star.accessibility.XAccessibleContext;
+import com.sun.star.accessibility.XAccessibleEventListener;
 import com.sun.star.awt.ActionEvent;
 import com.sun.star.awt.XActionListener;
 import com.sun.star.awt.XUnitConversion;
@@ -54,6 +56,7 @@ import com.sun.star.beans.PropertyChangeEvent;
 import com.sun.star.beans.XPropertyChangeListener;
 import com.sun.star.beans.XPropertySet;
 import com.sun.star.container.XIndexAccess;
+import com.sun.star.document.DocumentEvent;
 import com.sun.star.document.EventObject;
 import com.sun.star.drawing.FillStyle;
 import com.sun.star.drawing.XDrawPage;
@@ -63,10 +66,14 @@ import com.sun.star.drawing.XShapeGrouper;
 import com.sun.star.drawing.XShapes;
 import com.sun.star.embed.EmbedStates;
 import com.sun.star.embed.XEmbeddedObject;
+import com.sun.star.frame.FrameActionEvent;
 import com.sun.star.frame.XController;
 import com.sun.star.frame.XFrame;
+import com.sun.star.frame.XFrameActionListener;
 import com.sun.star.frame.XModel;
 import com.sun.star.io.IOException;
+import com.sun.star.lang.IllegalArgumentException;
+import com.sun.star.lang.NoSupportException;
 import com.sun.star.lang.XEventListener;
 import com.sun.star.lang.XMultiServiceFactory;
 import com.sun.star.lang.XServiceInfo;
@@ -119,7 +126,11 @@ public class UnoPlugin implements PlugIn{
     private static int notesCountTracker = 0;
     private static String previousEvent = "";
     //private static StringBuffer sSaveUrl = new StringBuffer("/nrims/home3/djsia/Desktop/backupTestFolder/");
-    private boolean docChangesFlag = false;
+    static boolean docChangesFlag;
+    
+    static NotesSaver notesSaver = null; //new NotesSaver(currentDocument, true, exec); 
+    static Thread notesSaverThread = null;
+    
     
     public UnoPlugin(){
         UnoPlugin.unoPlugin = this;
@@ -170,7 +181,7 @@ public class UnoPlugin implements PlugIn{
             }
         };
         unoPluginWindow.addWindowListener(windowAdapter);
-        //unoPluginWindow.show();
+        unoPluginWindow.show();
                  
     }
     /**
@@ -354,7 +365,8 @@ public class UnoPlugin implements PlugIn{
      * @return true on success, false otherwise
      */
     public static boolean openDoc(String notesFilepath) {
-        System.out.println("My Note's Path Is: " + notesFilepath);
+        
+       // System.out.println("My Note's Path Is: " + notesFilepath);
         try {
             XComponentContext localContext;
             String OS = System.getProperty("os.name").toLowerCase();
@@ -375,7 +387,7 @@ public class UnoPlugin implements PlugIn{
             
             XComponentLoader xComponentLoader = (XComponentLoader) UnoRuntime.queryInterface(
                     XComponentLoader.class, desktop);
-            PropertyValue[] loadProps = new PropertyValue[1];
+            PropertyValue[] loadProps = new PropertyValue[0];
             
            
             // DJ: "_default" argument checks if the document is already opened.
@@ -385,8 +397,12 @@ public class UnoPlugin implements PlugIn{
             //XComponent currentDocument = xComponentLoader.loadComponentFromURL("file://"+notesFilepath, "_blank", 0, loadProps);
             final XComponent currentDocument = xComponentLoader.loadComponentFromURL("file://"+notesFilepath, "_default", 0, loadProps);
             
+            
+            
             XTextDocument xTextDocument = (XTextDocument) UnoRuntime.queryInterface(
                     XTextDocument.class, currentDocument);
+            
+           
             
             
             // check if the backup directory exists,
@@ -423,11 +439,11 @@ public class UnoPlugin implements PlugIn{
             */
        
             // Step1 : We make a system file copy to  the notes' file the first time we open it.
-            com.sun.star.beans.PropertyValue[] propertyValue =
-                new com.sun.star.beans.PropertyValue[1];
-            propertyValue[0] = new com.sun.star.beans.PropertyValue();
-            propertyValue[0].Name = "Hidden";
-            propertyValue[0].Value = new Boolean(true);
+         //   com.sun.star.beans.PropertyValue[] propertyValue =
+         //       new com.sun.star.beans.PropertyValue[1];
+           // propertyValue[0] = new com.sun.star.beans.PropertyValue();
+            //propertyValue[0].Name = "Hidden";
+            //propertyValue[0].Value = new Boolean(true);
             
             com.sun.star.frame.XStorable xStorable =
                 UnoRuntime.queryInterface(
@@ -437,13 +453,14 @@ public class UnoPlugin implements PlugIn{
             //StringBuffer sSaveUrl = new StringBuffer("");
             //sSaveUrl.append("/nrims/home3/djsia/Desktop/backupTestFolder/");
             
-            propertyValue = new com.sun.star.beans.PropertyValue[ 2 ];
+            com.sun.star.beans.PropertyValue[] propertyValue = new com.sun.star.beans.PropertyValue[1];
             propertyValue[0] = new com.sun.star.beans.PropertyValue();
-            propertyValue[0].Name = "Overwrite";
-            propertyValue[0].Value = new Boolean(true);
-            propertyValue[1] = new com.sun.star.beans.PropertyValue();
-            propertyValue[1].Name = "FilterName";
-            propertyValue[1].Value = "StarOffice XML (Writer)";
+            propertyValue[0].Name = "Hidden";
+            propertyValue[0].Value = false;
+            //propertyValue[1] = new com.sun.star.beans.PropertyValue();
+            //propertyValue[1].Name = "FilterName";
+            //propertyValue[1].Value = "StarOffice XML (Writer)";
+            //propertyValue[1].Value = "StarWriter 4.0";
             
             DateFormat dateFormat = new SimpleDateFormat("yyyy_MM_dd__HH_mm_ss");
             java.util.Calendar cal = java.util.Calendar.getInstance();
@@ -451,7 +468,12 @@ public class UnoPlugin implements PlugIn{
             
             try {
                 notesFilepath = "file://" + sSaveUrl.toString()+"notes_"+dateFormat.format(cal.getTime())+".odt";
+                //notesFilepath = sSaveUrl.toString()+"notes_"+ dateFormat.format(cal.getTime()) +".odt";
+                System.out.println("initial backup file is: " + notesFilepath);
                 xStorable.storeToURL(notesFilepath, propertyValue );
+                
+               // xStorable.storeToURL(OS, loadProps);
+                
                 notesCountTracker++;
             }catch (IOException e) {
                 e.printStackTrace();
@@ -460,41 +482,147 @@ public class UnoPlugin implements PlugIn{
             //xStorable.storeToURL( sSaveUrl.toString(), propertyValue );
 
            System.out.println("\nINITIAL COPY SAVED ==>  " + notesFilepath);
+           
+           
             
+            // newly added lines
+            notesSaver = new NotesSaver(currentDocument, true, sSaveUrl); 
+            notesSaverThread = new Thread(notesSaver);
+            notesSaverThread.start();
+            
+            
+            
+            //====================================================================================
+            
+            
+            
+            //====================================================================================
+            
+            
+
+            com.sun.star.document.XDocumentEventBroadcaster broadCaster  = (com.sun.star.document.XDocumentEventBroadcaster)
+            UnoRuntime.queryInterface(com.sun.star.document.XDocumentEventBroadcaster.class, currentDocument); 
+            // call to broadCaster.addDocumentEventListener(listner) is
+            // below/after documentEventOccured overide
             
            
-
-            
-            com.sun.star.document.XDocumentEventBroadcaster broadCaster  = (com.sun.star.document.XDocumentEventBroadcaster)
-            UnoRuntime.queryInterface(com.sun.star.document.XDocumentEventBroadcaster.class, xTextDocument); 
             
             com.sun.star.document.XDocumentEventListener listner = new com.sun.star.document.XDocumentEventListener() {
-                
-                NotesSaver notesSaver = null; //= new NotesSaver(currentDocument, true, exec); 
-                Thread th = null;
+                //NotesSaver notesSaver = null; //= new NotesSaver(currentDocument, true, exec); 
+                //Thread notesSaverThread = null;
 
                 @Override
                 public void documentEventOccured(com.sun.star.document.DocumentEvent de) {
                     
-                    
-                    
                     System.out.println(" ===============================>> EVENT IS : " + de.EventName);
-                   
+                    
+                    // at this level, we're inside an OLE object
+                    
+                    if(de.EventName.equals("OnUnfocus") ){
+                        
+                        
+                        XTextDocument xTextDocument = (XTextDocument) UnoRuntime.queryInterface(
+                                XTextDocument.class, currentDocument);
+
+                        XMultiServiceFactory xMSF = (XMultiServiceFactory) UnoRuntime.queryInterface(
+                                XMultiServiceFactory.class, xTextDocument);
+
+                        XAccessible mXRoot = makeRoot(xMSF, xTextDocument);
+                        XAccessibleContext xAccessibleRoot = mXRoot.getAccessibleContext();
+
+                        //scope: xTextDocument -> ScrollPane -> Document
+                        //get the scroll pane object
+                        XAccessibleContext xAccessibleContext = getNextContext(xAccessibleRoot, 0);
+
+                        //get the document object
+                        xAccessibleContext = getNextContext(xAccessibleContext, 0);
+
+                        int numChildren = xAccessibleContext.getAccessibleChildCount();
+
+                        System.out.println("number of children = " + numChildren);
+
+                        //loop through all the children of the document and find the text frames
+                        for (int ii = 0; ii < numChildren; ii++) {
+                            XAccessibleContext xChildAccessibleContext = getNextContext(xAccessibleContext, ii);
+
+                            if (xChildAccessibleContext.getAccessibleRole() == AccessibleRole.EMBEDDED_OBJECT) {
+                                
+                                
+                                System.out.println("Description: " + xChildAccessibleContext.getAccessibleDescription());
+                                System.out.println("Name: " + xChildAccessibleContext.getAccessibleName());
+                                
+                         
+                                if (xChildAccessibleContext.getAccessibleName().isEmpty() == false) {
+                                    XComponent ole = getOLEE(xChildAccessibleContext.getAccessibleName(), xTextDocument);
+                                 
+                                    com.sun.star.document.XDocumentEventBroadcaster bC = (com.sun.star.document.XDocumentEventBroadcaster) UnoRuntime.queryInterface(com.sun.star.document.XDocumentEventBroadcaster.class, ole);
+
+                                    com.sun.star.document.XDocumentEventListener listner = new com.sun.star.document.XDocumentEventListener() {
+                                        @Override
+                                        public void documentEventOccured(DocumentEvent de) {
+
+                                            if (de.EventName.equals("OnModifyChanged")) {
+                                                System.out.println("Within OLE : " + de.EventName);
+                                                docChangesFlag = true;
+                                            } else if (de.EventName.equals("OnVisAreaChanged")) {
+                                                System.out.println("Within OLE : " + de.EventName);
+                                                docChangesFlag = true;
+                                            }
+
+
+                                            throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                                        }
+
+                                        @Override
+                                        public void disposing(com.sun.star.lang.EventObject eo) {
+                                            throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
+                                        }
+                                    };
+
+
+                                    bC.addDocumentEventListener(listner);
+                                }                       
+
+                            }
+
+                        }
+
+                    }
+
                     
                     // DJ: the timer and scheduler were used for testing purposes only.
                     //java.util.Timer timer;// = new java.util.Timer();
                     //java.util.concurrent.ScheduledExecutorService exec;// = java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
                     
                     // The case where we save the system file before the save action is performed. 
-                    if(de.EventName.equals("OnSave")){
+                    if(de.EventName.equals("OnSave") ){
+                        
+                        
+                        previousEvent = "OnSave";
+                        //System.out.println(" ===============================>> EVENT IS : " + de.EventName);
+                        
+                        //notesSaver.setFlag(false);
+                        docChangesFlag = false;
+                        System.out.println("docChangesFlagg = " + docChangesFlag);
+                        
+                         // we save a SYSTEM file copy before we perform the save because if it happens
+                        // that we save a "bad ole", we at least have the most updated clean copy saved as a backup.
+                        DateFormat dateFormat = new SimpleDateFormat("yyyy_MM_dd__HH_mm_ss");
+                        java.util.Calendar cal = java.util.Calendar.getInstance();
+                        String backupFilePath = sSaveUrl.toString() + "notes_" + dateFormat.format(cal.getTime()) + "_copy" +  ".odt";
+                        
+                        Thread copierThread = new Thread(new NotesCopier(notesPath, backupFilePath));
+                        copierThread.start();
+                        
+                        /*
                         previousEvent = "OnSave";
                        // System.out.println("SAVE EVENT");
                         
-                       if(notesSaver != null && th != null){
+                       if(notesSaver != null && notesSaverThread != null){
                             
                             System.out.println("Stopping the thread...");
                             notesSaver.setFlag(false); // stops the thread.
-                            th.setPriority(Thread.MAX_PRIORITY);
+                            notesSaverThread.setPriority(Thread.MAX_PRIORITY);
                             System.out.println("Thread stopped.");
                         }
                             
@@ -506,27 +634,49 @@ public class UnoPlugin implements PlugIn{
                         // that we save a "bad ole", we at least have the most updated clean copy saved as a backup.
                         Thread copierThread = new Thread(new NotesCopier(notesPath, backupFilePath));
                         copierThread.start();
+                        */ 
+                        
+                    }   
+                    
+                    else if (de.EventName.equals("OnSaveDone")){
+                        previousEvent = "OnSaveDone";
+                        docChangesFlag = false;
                         
                     }
-                    if(de.EventName.equals("OnModifyChanged")  /*&& !previousEvent.equals("OnSave")*/){
+                    
+                    else if (de.EventName.equals("OnCopyToDone")){
+                        docChangesFlag = false;
+                        previousEvent = "OnCopyToDone";
+                        //System.out.println("docChangesFlag = " + docChangesFlag);
                         
+                        /*
+                        DocumentEvent fakeDocEvent = new DocumentEvent(de.Source, "OnSaveDone", de.ViewController, de.Supplement);
+                        System.out.println("fake event name is: " + fakeDocEvent.EventName);
+                        this.documentEventOccured(fakeDocEvent);
+                        */
+                        
+                    }
+                    
+                    else if (de.EventName.equals("OnLayoutFinished")){
+                        docChangesFlag = true;
+                        previousEvent = "OnLayoutFinished";
+                        System.out.println("docChangesFlag = " + docChangesFlag);
+                    }
+                    
+                    else if(de.EventName.equals("OnModifyChanged") || de.EventName.equals("OnLayoutFinished")  /*&& !previousEvent.equals("OnSave")*/){
                         
                         
                         
                         if(previousEvent.equals("OnSave")){
                           //  System.out.println("\tPrevious event was a SAVE EVENT");
-                            
                             previousEvent = "OnModifyChanged";
+                        } else{
+                            //System.out.println(" ===============================>> EVENT IS : " + de.EventName);
+                            //notesSaver.setFlag(true);
+                            docChangesFlag = true;
+                            System.out.println("docChangesFlag = " + docChangesFlag);
                         }
-                        else{
-                         //   System.out.println("\tPrevious event was NOT SAVE EVENT -- GOOD TO GO");
-                            System.out.println("IN MODIFY: ");
-                            notesSaver = new NotesSaver(currentDocument, true, sSaveUrl);
-                            th = new Thread(notesSaver);
-                            if (!th.isAlive()) {
-                                th.start();
-                            }
-                        }
+                        
                     }
                     
                     throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
@@ -535,11 +685,23 @@ public class UnoPlugin implements PlugIn{
                 @Override
                 public void disposing(com.sun.star.lang.EventObject eo) {
                     System.out.println("document is about to be closed.");
+                    notesSaver.setFlag(false);
+                    /*
+                    try {
+                        notesSaverThread.join();
+                    } catch (InterruptedException ex) {
+                        Logger.getLogger(UnoPlugin.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                    */
                     throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
                 }
             };
             
+            
+            
             broadCaster.addDocumentEventListener(listner);
+
+            
             
             /*
             com.sun.star.beans.PropertyValue[] propertyValue =
@@ -2228,6 +2390,37 @@ public class UnoPlugin implements PlugIn{
         return xComponent;
 
     }
+        //DJ: for testing purposes:
+        static XComponent getOLEE(String name, XTextDocument xTextDocument) {
+        XComponent xComponent = null;
+        try {
+            //get the text frame supplier from the document
+            XTextEmbeddedObjectsSupplier xTextEmbeddedObjectsSupplier =
+                    (XTextEmbeddedObjectsSupplier) UnoRuntime.queryInterface(
+                    XTextEmbeddedObjectsSupplier.class, xTextDocument);
+
+            //get text frame objects
+            XNameAccess xNameAccess = xTextEmbeddedObjectsSupplier.getEmbeddedObjects();
+            
+            for(String s : xNameAccess.getElementNames()){
+                System.out.println("Embeded object name is : " + s);
+            }
+
+            //query for the object with the desired name
+            Object xTextEmbeddedObject = xNameAccess.getByName(name);
+            XTextContent xTextContent = (XTextContent) UnoRuntime.queryInterface(XTextContent.class, xTextEmbeddedObject);
+            //get the XTextFrame interface
+            com.sun.star.document.XEmbeddedObjectSupplier xEOS = (com.sun.star.document.XEmbeddedObjectSupplier) UnoRuntime.queryInterface(com.sun.star.document.XEmbeddedObjectSupplier.class, xTextContent);
+            com.sun.star.lang.XComponent xModel = xEOS.getEmbeddedObject();
+            return xModel;
+        } catch (Exception e) {
+            System.out.println("Could not find frame with name " + name);
+            e.printStackTrace(System.err);
+        }
+        return xComponent;
+
+    }
+    
     private Size getOLEDimensions(String name, XTextDocument xTextDocument) {
         try {
             //get the text frame supplier from the document
@@ -2702,64 +2895,82 @@ public class UnoPlugin implements PlugIn{
         public void run() {
             
             
-            System.out.println("Scheduler called");
-            
+            //System.out.println("Scheduler called");
+
             while (flag) {
+                
+                System.out.println("Thread woke up");
+                
+                if (docChangesFlag || (!docChangesFlag && previousEvent.equals("OnModifyChanged"))) {
+                    System.out.println("CH Flag +");
+                    
+                    System.out.println("Change happened within last 10 seconds ===> to save it");
+                    
+                   // try {
+                        // we wait for 5 seconds before we do anything
+                        // to be changed later on to be 10 minutes: 1000*60*10
+                        //Thread.sleep((long) 5 * 1000);
 
+                        /*
+                        com.sun.star.beans.PropertyValue[] propertyValue =
+                                new com.sun.star.beans.PropertyValue[1];
+                        propertyValue[0] = new com.sun.star.beans.PropertyValue();
+                        propertyValue[0].Name = "Hidden";
+                        propertyValue[0].Value = new Boolean(true);
+                        */
+
+                        com.sun.star.frame.XStorable xStorable =
+                                UnoRuntime.queryInterface(
+                                com.sun.star.frame.XStorable.class, currentDocument);
+
+                        //StringBuffer sSaveUrl = new StringBuffer("file://");
+                        //StringBuffer sSaveUrl = new StringBuffer("");
+                        //sSaveUrl.append("/nrims/home3/djsia/Desktop/backupTestFolder/");
+
+                         com.sun.star.beans.PropertyValue[] propertyValue = new com.sun.star.beans.PropertyValue[1];
+                        propertyValue[0] = new com.sun.star.beans.PropertyValue();
+                        propertyValue[0].Name = "Overwrite";
+                        propertyValue[0].Value = true;
+                        /*
+                        propertyValue[1] = new com.sun.star.beans.PropertyValue();
+                        propertyValue[1].Name = "FilterName";
+                        propertyValue[1].Value = "StarOffice XML (Writer)";
+                        */
+
+                        try {
+
+                            DateFormat dateFormat = new SimpleDateFormat("yyyy_MM_dd__HH_mm_ss");
+                            java.util.Calendar cal = java.util.Calendar.getInstance();
+                            notesFilepath = "file://" + sSaveUrl.toString() + "notes_" + dateFormat.format(cal.getTime()) + ".odt";
+                            xStorable.storeToURL(notesFilepath, propertyValue);
+                            notesCountTracker++;
+
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+
+                        //xStorable.storeToURL( sSaveUrl.toString(), propertyValue );
+
+                        System.out.println("\nNOTES SAVED ==> " + notesFilepath + "\n");
+
+                        docChangesFlag = false; 
+                        
+                        //this.flag = false;
+                } else {
+                    System.out.println("CH Flag -");
+                }
                 try {
-                    // we wait for 5 seconds before we do anything
-                    // to be changed later on to be 10 minutes: 1000*60*10
-                    Thread.sleep((long) 5*1000);
-
-                    com.sun.star.beans.PropertyValue[] propertyValue =
-                            new com.sun.star.beans.PropertyValue[1];
-                    propertyValue[0] = new com.sun.star.beans.PropertyValue();
-                    propertyValue[0].Name = "Hidden";
-                    propertyValue[0].Value = new Boolean(true);
-
-                    com.sun.star.frame.XStorable xStorable =
-                            UnoRuntime.queryInterface(
-                            com.sun.star.frame.XStorable.class, currentDocument);
-
-                    //StringBuffer sSaveUrl = new StringBuffer("file://");
-                    //StringBuffer sSaveUrl = new StringBuffer("");
-                    //sSaveUrl.append("/nrims/home3/djsia/Desktop/backupTestFolder/");
-
-                    propertyValue = new com.sun.star.beans.PropertyValue[2];
-                    propertyValue[0] = new com.sun.star.beans.PropertyValue();
-                    propertyValue[0].Name = "Overwrite";
-                    propertyValue[0].Value = new Boolean(true);
-                    propertyValue[1] = new com.sun.star.beans.PropertyValue();
-                    propertyValue[1].Name = "FilterName";
-                    propertyValue[1].Value = "StarOffice XML (Writer)";
-
-                    try {
-
-                        DateFormat dateFormat = new SimpleDateFormat("yyyy_MM_dd__HH_mm_ss");
-                        java.util.Calendar cal = java.util.Calendar.getInstance();
-                        notesFilepath = "file://" + sSaveUrl.toString() + "notes_" + dateFormat.format(cal.getTime()) + ".odt";
-                        xStorable.storeToURL(notesFilepath, propertyValue);
-                        notesCountTracker++;
-
-
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-
-                    //xStorable.storeToURL( sSaveUrl.toString(), propertyValue );
-
-                    System.out.println("\nNOTES SAVED ==> " + notesFilepath + "\n");
-
-                    //this.flag = false;
-
+                    Thread.sleep((long) 15 * 1000);
                 } catch (InterruptedException e) {
                     System.out.println(e);
-             //       flag = false;
+                    //       flag = false;
                 }
+
             }
-            //throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
         }
+        //throw new UnsupportedOperationException("Not supported yet."); //To change body of generated methods, choose Tools | Templates.
     }
+
     
     
     // DJ: 11/10/2014
