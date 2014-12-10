@@ -129,7 +129,10 @@ public class UnoPlugin implements PlugIn{
     static NotesSaver notesSaver = null; //new NotesSaver(currentDocument, true, exec); 
     static Thread notesSaverThread = null;
     static final int SLEEP_TIME = 15;  // seconds 
-    
+    static boolean isNotesFileUnlocked = false;
+    static String NotesPath = "";
+    static boolean notesOpenedBefore = false;
+    static String notesFileName = "";
     
     
     public UnoPlugin(){
@@ -144,6 +147,28 @@ public class UnoPlugin implements PlugIn{
         } else {
             IJ.error("Error: dragdrop_tools.fiji.ijm does not exist. Please try updating.");
         }
+        
+        /*
+         //DJ
+         try {
+             File notes = new File(NotesPath);
+             org.apache.commons.io.FileUtils.touch(notes);
+             isNotesFileUnlocked = true;
+
+             System.out.println("Const 1 : notes file is unlocked");
+
+             if (notesOpenedBefore == false) {
+                 openDoc(NotesPath);
+                 notesOpenedBefore = true;
+             }
+
+         } catch (java.io.IOException e) {
+             isNotesFileUnlocked = false;
+             System.out.println("Const 1 : notes file is locked");
+         }
+        */
+        
+        
         t = new Thread(new ListenerAdder());
         t.start();
 
@@ -154,6 +179,27 @@ public class UnoPlugin implements PlugIn{
         dropToResize = true;
         fitToWindow = true;
         autoTile = true;
+        
+        /*
+        //DJ
+        try {
+            File notes = new File(NotesPath);
+             org.apache.commons.io.FileUtils.touch(notes);
+            isNotesFileUnlocked = true;
+            
+            System.out.println("Const 2 : notes file is unlocked");
+            if(notesOpenedBefore == false){
+                openDoc(NotesPath);
+                notesOpenedBefore = true;
+            }
+            
+        } catch (java.io.IOException e) {
+            isNotesFileUnlocked = false;
+            System.out.println("Const 2 : notes file is locked");
+        }
+        */
+
+        
         t = new Thread(new ListenerAdder());
         t.start();
     }
@@ -358,6 +404,38 @@ public class UnoPlugin implements PlugIn{
      public boolean getDocChangesFlag(){
          return this.docChangesFlag;
      }
+     
+     public static void setNotesPath(String notesPath){
+         NotesPath = notesPath;
+     }
+     
+     public static void setOpenStatus(String notesPath){       
+         //DJ
+         NotesPath = notesPath;
+         try {
+             File notes = new File(NotesPath);
+             org.apache.commons.io.FileUtils.touch(notes);
+             isNotesFileUnlocked = true;
+
+             System.out.println("notes file is unlocked");
+
+            // if (notesOpenedBefore == true) {
+             //    openDoc(NotesPath);
+             //    notesOpenedBefore = true;
+           //  }
+
+         } catch (java.io.IOException e) {
+             isNotesFileUnlocked = false;
+             System.out.println("notes file is locked");
+         }
+         
+       //  if (isNotesFileUnlocked == true) {
+       //          openDoc(NotesPath);
+       //          notesOpenedBefore = true;
+       //      }
+         
+     }
+     
      //DJ: 10/24/2014
     /**
      * Opens a writer document that already exists.
@@ -365,6 +443,16 @@ public class UnoPlugin implements PlugIn{
      * @return true on success, false otherwise
      */
     public static boolean openDoc(String notesFilepath) {
+        
+        if(notesFilepath.isEmpty()){
+            System.out.println("Notes File Path is Empty");
+            return false;
+        }
+        
+        notesFileName = notesFilepath.substring(notesFilepath.lastIndexOf('/')+1, notesFilepath.indexOf(".odt"));
+        
+        System.out.println("notes file name is :" + notesFileName);
+        
         
        // System.out.println("My Note's Path Is: " + notesFilepath);
         try {
@@ -394,10 +482,17 @@ public class UnoPlugin implements PlugIn{
             // if it is, it pushes it to be visible upfront
             // if it is not already opened, it just opens it using the provide url (first argument)
             
+           
+          //  if(notesOpenedBefore){
+          //      xComponentLoader.loadComponentFromURL("file://"+notesFilepath, "_default", 0, loadProps);
+         //       return true;
+         //   }
+                
+            
             //XComponent currentDocument = xComponentLoader.loadComponentFromURL("file://"+notesFilepath, "_blank", 0, loadProps);
             final XComponent currentDocument = xComponentLoader.loadComponentFromURL("file://"+notesFilepath, "_default", 0, loadProps);
             
-            
+           
             
             XTextDocument xTextDocument = (XTextDocument) UnoRuntime.queryInterface(
                     XTextDocument.class, currentDocument);
@@ -469,7 +564,7 @@ public class UnoPlugin implements PlugIn{
             System.out.println(dateFormat.format(cal.getTime())); //2014/08/06 16:00:22
             
             File notesFile = new File(notesFilepath);
-            String destinFilePath = sSaveUrl.toString()+"notes_"+dateFormat.format(cal.getTime())+ "_copy" + ".odt";
+            String destinFilePath = sSaveUrl.toString() + notesFileName + "_"+dateFormat.format(cal.getTime())+ "_copy" + ".odt";
             File destFile = new File(destinFilePath);
             
             //System.out.println("notesFile: " + notesFile.getAbsolutePath());
@@ -622,7 +717,7 @@ public class UnoPlugin implements PlugIn{
                         // that we save a "bad ole", we at least have the most updated clean copy saved as a backup.
                         DateFormat dateFormat = new SimpleDateFormat("yyyy_MM_dd__HH_mm_ss");
                         java.util.Calendar cal = java.util.Calendar.getInstance();
-                        String backupFilePath = sSaveUrl.toString() + "notes_" + dateFormat.format(cal.getTime()) + "_copy" +  ".odt";
+                        String backupFilePath = sSaveUrl.toString() + notesFileName + "_" + dateFormat.format(cal.getTime()) + "_copy" +  ".odt";
                         
                         Thread copierThread = new Thread(new NotesCopier(notesPath, backupFilePath));
                         copierThread.start();
@@ -703,7 +798,9 @@ public class UnoPlugin implements PlugIn{
                 @Override
                 public void disposing(com.sun.star.lang.EventObject eo) {
                     System.out.println("document is about to be closed.");
+                    notesOpenedBefore = false;
                     notesSaver.setFlag(false);
+                    System.out.println("notes Opened = " + notesOpenedBefore);
                     /*
                     try {
                         notesSaverThread.join();
@@ -880,6 +977,7 @@ public class UnoPlugin implements PlugIn{
     //       System.out.println("\nDocument \"" + "file://"+notesFilepath + "\" saved under \"" +
      //                          sSaveUrl + "\"\n");
     //        
+            notesOpenedBefore = true;
             return true;
         } catch (Exception e) {
             System.out.println("Failure to create new document");
@@ -2962,7 +3060,7 @@ public class UnoPlugin implements PlugIn{
 
                             DateFormat dateFormat = new SimpleDateFormat("yyyy_MM_dd__HH_mm_ss");
                             java.util.Calendar cal = java.util.Calendar.getInstance();
-                            notesFilepath = "file://" + sSaveUrl.toString() + "notes_" + dateFormat.format(cal.getTime()) + ".odt";
+                            notesFilepath = "file://" + sSaveUrl.toString() + notesFileName + "_" + dateFormat.format(cal.getTime()) + ".odt";
                             xStorable.storeToURL(notesFilepath, propertyValue);
 
                         } catch (IOException e) {
