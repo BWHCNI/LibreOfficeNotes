@@ -55,6 +55,7 @@ import com.sun.star.awt.XWindowPeer;
 import com.sun.star.beans.PropertyChangeEvent;
 import com.sun.star.beans.XPropertyChangeListener;
 import com.sun.star.beans.XPropertySet;
+import com.sun.star.comp.helper.BootstrapException;
 import com.sun.star.container.XIndexAccess;
 import com.sun.star.document.DocumentEvent;
 import com.sun.star.document.EventObject;
@@ -94,14 +95,18 @@ import java.awt.event.MouseListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.File;
+import java.lang.reflect.Field;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.TimeZone;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+
+
 
 /**
  *
@@ -110,6 +115,9 @@ import java.util.logging.Logger;
 public class UnoPlugin implements PlugIn{
 
     private XComponentContext context;
+    private static XComponentContext localContext;
+    private static String oooExeFolder;
+    private static String OS; 
     private XMultiComponentFactory xMCF;
     private UnoPluginWindow unoPluginWindow;
     private ArrayList<ImageListenerPair> pairs = new ArrayList<ImageListenerPair>();
@@ -180,6 +188,50 @@ public class UnoPlugin implements PlugIn{
         fitToWindow = true;
         autoTile = true;
         
+ //   This shows how to list all JVM properties          
+//          java.util.Properties props = System.getProperties();         
+//          java.util.Enumeration e = props.propertyNames();
+//          System.out.println("JVM Properties:");
+//          while (e.hasMoreElements()) {
+//             String k = (String) e.nextElement();
+//             String v = props.getProperty(k);
+//             System.out.println("   "+k+" = "+v);
+//          }
+      
+        OS = System.getProperty("os.name").toLowerCase();
+        //We need to check whether or not the OS is a Mac here because on Macs, the juh.jar (the Java UNO Helper)
+        //is not located in the same place as the program, so we need to specify where the program is
+        if (OS.indexOf("mac") >= 0) {
+             // do nothing on a Mac, because the path to the libreOffice executables is set elsewhere 
+             // in this class.
+            oooExeFolder = "/Applications/LibreOffice.app/Contents/MacOS";
+//            try {
+//                localContext = BootstrapSocketConnector.bootstrap(oooExeFolder);
+//            } catch (BootstrapException be) {
+//                System.out.println("BootstrapException in constructor of UnoPlugin");
+//            }
+              
+        } else {
+            try {
+                addLibraryPath("/usr/lib/libreoffice/program/");
+                // For future work, possibly:  Fiji does some of its own library path manipulation that we will
+                // have to take into account.  The addLibraryPath method is a bit of a hack that seems to be
+                // the best option Java developers have to add paths after launch of the VM, though nobody
+                // seems to like it.   On both the Mac and Linux, this code will fail if LibreOffice is installed 
+                // anywhere but the hard-coding paths specified above.
+            } catch (Exception e) {
+                System.out.println("Unable to add libreoffice path in UnoPlugin.");
+            } 
+            try {
+                localContext = Bootstrap.bootstrap();
+            } catch (BootstrapException be) {
+                System.out.println("BootstrapException in constructor of UnoPlugin");
+            }
+        }
+        
+        
+        
+
         /*
         //DJ
         try {
@@ -203,6 +255,35 @@ public class UnoPlugin implements PlugIn{
         t = new Thread(new ListenerAdder());
         t.start();
     }
+    
+    
+    /**
+    * Adds the specified path to the java library path
+    *
+    * @param pathToAdd the path to add
+    * @throws Exception
+    */
+    public static void addLibraryPath(String pathToAdd) throws Exception{
+        final Field usrPathsField = ClassLoader.class.getDeclaredField("usr_paths");
+        usrPathsField.setAccessible(true);
+
+        //get array of paths
+        final String[] paths = (String[])usrPathsField.get(null);
+
+        //check if the path to add is already present
+        for(String path : paths) {
+            if(path.equals(pathToAdd)) {
+                return;
+            }
+        }
+
+        //add the new path
+        final String[] newPaths = Arrays.copyOf(paths, paths.length + 1);
+        newPaths[newPaths.length-1] = pathToAdd;
+        usrPathsField.set(null, newPaths);
+    }
+
+
     public static UnoPlugin getInstance(){
         return (UnoPlugin)unoPlugin;
     }
@@ -994,16 +1075,12 @@ public class UnoPlugin implements PlugIn{
      */
     public static boolean newDoc() {
         try {
-            XComponentContext localContext;
-            String OS = System.getProperty("os.name").toLowerCase();
-            //We need to check whether or not the OS is a Mac here because on Macs, the juh.jar (the Java UNO Helper)
-            //is not located in the same place as the program, so we need to specify where the program is
             if (OS.indexOf("mac") >= 0) {
-                String oooExeFolder = "/Applications/LibreOffice.app/Contents/MacOS";
                 localContext = BootstrapSocketConnector.bootstrap(oooExeFolder);
             } else {
                 localContext = Bootstrap.bootstrap();
             }
+
             XMultiComponentFactory xMCF = localContext.getServiceManager();
             Object oDesktop = xMCF.createInstanceWithContext(
                     "com.sun.star.frame.Desktop", localContext);
@@ -1021,16 +1098,12 @@ public class UnoPlugin implements PlugIn{
     }
     public static boolean newDraw() {
         try {
-            XComponentContext localContext;
-            String OS = System.getProperty("os.name").toLowerCase();
-            //We need to check whether or not the OS is a Mac here because on Macs, the juh.jar (the Java UNO Helper)
-            //is not located in the same place as the program, so we need to specify where the program is
             if (OS.indexOf("mac") >= 0) {
-                String oooExeFolder = "/Applications/LibreOffice.app/Contents/MacOS";
                 localContext = BootstrapSocketConnector.bootstrap(oooExeFolder);
             } else {
                 localContext = Bootstrap.bootstrap();
             }
+            
             XMultiComponentFactory xMCF = localContext.getServiceManager();
             Object oDesktop = xMCF.createInstanceWithContext(
                     "com.sun.star.frame.Desktop", localContext);
@@ -1048,16 +1121,12 @@ public class UnoPlugin implements PlugIn{
     }
     public static boolean newImpress() {
         try {
-            XComponentContext localContext;
-            String OS = System.getProperty("os.name").toLowerCase();
-            //We need to check whether or not the OS is a Mac here because on Macs, the juh.jar (the Java UNO Helper)
-            //is not located in the same place as the program, so we need to specify where the program is
             if (OS.indexOf("mac") >= 0) {
-                String oooExeFolder = "/Applications/LibreOffice.app/Contents/MacOS";
                 localContext = BootstrapSocketConnector.bootstrap(oooExeFolder);
             } else {
                 localContext = Bootstrap.bootstrap();
             }
+            
             XMultiComponentFactory xMCF = localContext.getServiceManager();
             Object oDesktop = xMCF.createInstanceWithContext(
                     "com.sun.star.frame.Desktop", localContext);
@@ -1080,17 +1149,12 @@ public class UnoPlugin implements PlugIn{
         
         //XComponent xComponent = null;
         try {
-             
-            XComponentContext localContext;
-            String OS = System.getProperty("os.name").toLowerCase();
-            //We need to check whether or not the OS is a Mac here because on Macs, the juh.jar (the Java UNO Helper)
-            //is not located in the same place as the program, so we need to specify where the program is
             if (OS.indexOf("mac") >= 0) {
-                String oooExeFolder = "/Applications/LibreOffice.app/Contents/MacOS";
                 localContext = BootstrapSocketConnector.bootstrap(oooExeFolder);
             } else {
                 localContext = Bootstrap.bootstrap();
             }
+            
             XMultiComponentFactory xMCF = localContext.getServiceManager();
             Object oDesktop = xMCF.createInstanceWithContext(
                     "com.sun.star.frame.Desktop", localContext);
@@ -1249,16 +1313,12 @@ public class UnoPlugin implements PlugIn{
     public void insertOLEAndImage(ImageInfo image, String filename, String path, int width, int height,Point pnt, Size z) {
         
         try {
-            XComponentContext localContext;
-            String OS = System.getProperty("os.name").toLowerCase();
-            //We need to check whether or not the OS is a Mac here because on Macs, the juh.jar (the Java UNO Helper)
-            //is not located in the same place as the program, so we need to specify where the program is
             if (OS.indexOf("mac") >= 0) {
-                String oooExeFolder = "/Applications/LibreOffice.app/Contents/MacOS";
                 localContext = BootstrapSocketConnector.bootstrap(oooExeFolder);
             } else {
                 localContext = Bootstrap.bootstrap();
             }
+            
             XMultiComponentFactory xMCF = localContext.getServiceManager();
             Object oDesktop = xMCF.createInstanceWithContext(
                     "com.sun.star.frame.Desktop", localContext);
