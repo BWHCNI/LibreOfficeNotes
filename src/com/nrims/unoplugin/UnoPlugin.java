@@ -205,12 +205,6 @@ public class UnoPlugin implements PlugIn{
              // do nothing on a Mac, because the path to the libreOffice executables is set elsewhere 
              // in this class.
             oooExeFolder = "/Applications/LibreOffice.app/Contents/MacOS";
-//            try {
-//                localContext = BootstrapSocketConnector.bootstrap(oooExeFolder);
-//            } catch (BootstrapException be) {
-//                System.out.println("BootstrapException in constructor of UnoPlugin");
-//            }
-              
         } else {
             try {
                 addLibraryPath("/usr/lib/libreoffice/program/");
@@ -230,7 +224,7 @@ public class UnoPlugin implements PlugIn{
         }
         
         
-        
+
 
         /*
         //DJ
